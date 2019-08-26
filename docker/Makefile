@@ -13,7 +13,7 @@ endif
 DB_URL = postgresql://postgres:@$(HOST):5432/explorer?ssl=false
 BLOCKSCOUT_CONTAINNER_PARAMS = -e 'MIX_ENV=prod' \
 															 -e 'DATABASE_URL=$(DB_URL)'
-															 
+
 BLOCKSCOUT_CONTAINNER_PARAMS += -e 'ETHEREUM_JSONRPC_VARIANT=geth'
 BLOCKSCOUT_CONTAINNER_PARAMS += -e 'ETHEREUM_JSONRPC_HTTP_URL=http://localhost:8545'
 BLOCKSCOUT_CONTAINNER_PARAMS += -e 'ETHEREUM_JSONRPC_WS_URL=http://localhost:8546'
@@ -35,7 +35,7 @@ ifdef ETHEREUM_JSONRPC_TRACE_URL
 endif
 # ifdef COIN
 # 	BLOCKSCOUT_CONTAINNER_PARAMS += -e 'COIN=$(COIN)'
-endif
+# endif
 ifdef LOGO
 	BLOCKSCOUT_CONTAINNER_PARAMS += -e 'LOGO=$(LOGO)'
 endif
