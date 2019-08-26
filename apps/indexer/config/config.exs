@@ -46,7 +46,7 @@ config :indexer,
   max_skipping_distance: max_skipping_distance
 
 # config :indexer, Indexer.Fetcher.ReplacedTransaction.Supervisor, disabled?: true
-# config :indexer, Indexer.Fetcher.BlockReward.Supervisor, disabled?: true
+config :indexer, Indexer.Fetcher.BlockReward.Supervisor, disabled?: true
 config :indexer, Indexer.Fetcher.StakingPools.Supervisor, disabled?: true
 
 config :indexer, Indexer.Supervisor, enabled: System.get_env("DISABLE_INDEXER") != "true"
