@@ -5,6 +5,7 @@ BS_CONTAINER_NAME = blockscout
 PG_CONTAINER_NAME = postgres
 PG_CONTAINER_IMAGE = postgres:10.6
 THIS_FILE = $(lastword $(MAKEFILE_LIST))
+SUBNETWORK = Elastos Ethereum Sidechain Testnet
 
 ifeq ($(SYSTEM), Linux)
 	HOST=localhost
