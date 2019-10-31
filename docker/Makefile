@@ -19,7 +19,8 @@ BLOCKSCOUT_CONTAINNER_PARAMS += -e 'ETHEREUM_JSONRPC_VARIANT=geth'
 BLOCKSCOUT_CONTAINNER_PARAMS += -e 'ETHEREUM_JSONRPC_HTTP_URL=http://localhost:8545'
 BLOCKSCOUT_CONTAINNER_PARAMS += -e 'ETHEREUM_JSONRPC_WS_URL=ws://localhost:8546'
 BLOCKSCOUT_CONTAINNER_PARAMS += -e 'BLOCK_TRANSFORMER=clique'
-BLOCKSCOUT_CONTAINNER_PARAMS += -e 'COIN=ETH'
+BLOCKSCOUT_CONTAINNER_PARAMS += -e 'COIN=ELA'
+BLOCKSCOUT_CONTAINNER_PARAMS += -e 'BLOCKSCOUT_VERSION=v1.0.0'
 ifeq ($(SYSTEM), Linux)
 	BLOCKSCOUT_CONTAINNER_PARAMS += --network=host
 endif
@@ -55,7 +56,7 @@ ifdef NETWORK_PATH
 endif
 
 HAS_BLOCKSCOUT_IMAGE := $(shell docker images | grep ${DOCKER_IMAGE})
-build: 
+build:
 	@echo "==> Checking for blockscout image $(DOCKER_IMAGE)"
 ifdef HAS_BLOCKSCOUT_IMAGE
 	@echo "==> Image exist. Using $(DOCKER_IMAGE)"
@@ -93,7 +94,7 @@ else
 	@$(MAKE) -f $(THIS_FILE) migrate
 endif
 
-start: build postgres 
+start: build postgres
 	@echo "==> Starting blockscout"
 	@docker run -d --name $(BS_CONTAINER_NAME) \
 					$(BLOCKSCOUT_CONTAINNER_PARAMS) \
@@ -106,4 +107,4 @@ run: start
 				migrate \
 				start \
 				postgres \
-				run 
+				run
