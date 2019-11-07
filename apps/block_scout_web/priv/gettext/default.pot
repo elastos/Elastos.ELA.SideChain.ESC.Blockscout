@@ -242,24 +242,24 @@ msgstr ""
 #: lib/block_scout_web/templates/address_coin_balance/index.html.eex:10
 #: lib/block_scout_web/templates/block/index.html.eex:6
 msgid "Connection Lost, click to load newer blocks"
-msgstr " "
+msgstr ""
 
 #, elixir-format
 #: lib/block_scout_web/templates/address_internal_transaction/index.html.eex:15
 msgid "Connection Lost, click to load newer internal transactions"
-msgstr " "
+msgstr ""
 
 #, elixir-format
 #: lib/block_scout_web/templates/address_transaction/index.html.eex:11
 #: lib/block_scout_web/templates/pending_transaction/index.html.eex:15
 #: lib/block_scout_web/templates/transaction/index.html.eex:15
 msgid "Connection Lost, click to load newer transactions"
-msgstr " "
+msgstr ""
 
 #, elixir-format
 #: lib/block_scout_web/templates/address_validation/index.html.eex:10
 msgid "Connection Lost, click to load newer validations"
-msgstr " "
+msgstr ""
 
 #, elixir-format
 #: lib/block_scout_web/templates/address_contract/index.html.eex:75
@@ -1769,7 +1769,7 @@ msgstr ""
 #, elixir-format
 #: lib/block_scout_web/templates/address_contract_verification/new.html.eex:4
 msgid "Connection Lost"
-msgstr " "
+msgstr ""
 
 #, elixir-format
 #: lib/block_scout_web/templates/address_contract/index.html.eex:53
