@@ -6,11 +6,6 @@
     <div class="card">
       <%= render BlockScoutWeb.AddressView, "_tabs.html", assigns %>
       <div class="card-body" data-async-listing="<%= @current_path %>">
-        <div data-selector="channel-disconnected-message" style="display: none;">
-          <div data-selector="reload-button" class="alert alert-danger">
-            <a href="#" class="alert-link"><%= gettext "Connection Lost, click to load newer transactions" %></a>
-          </div>
-        </div>
         <div class="clearfix">
           <h2 class="card-title float-left"><%= gettext "Transactions" %></h2>
           <div class="dropdown float-right u-push-sm">
