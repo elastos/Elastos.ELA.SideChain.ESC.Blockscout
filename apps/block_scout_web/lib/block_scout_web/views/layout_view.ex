@@ -4,34 +4,15 @@ defmodule BlockScoutWeb.LayoutView do
   alias Plug.Conn
   alias Poison.Parser
 
-  @issue_url "https://github.com/poanetwork/blockscout/issues/new"
+  @issue_url "https://github.com/poanetwork/cyber-republic/issues/new"
   @default_other_networks [
+    # %{
+    #   title: "Ethereum Mainnet",
+    #   url: "https://blockscout.com/eth/mainnet"
+    # },
     %{
-      title: "POA Core",
-      url: "https://blockscout.com/poa/core"
-    },
-    %{
-      title: "POA Sokol",
-      url: "https://blockscout.com/poa/sokol",
-      test_net?: true
-    },
-    %{
-      title: "xDai Chain",
-      url: "https://blockscout.com/poa/dai"
-    },
-    %{
-      title: "Kovan Testnet",
-      url: "https://blockscout.com/eth/kovan",
-      test_net?: true
-    },
-    %{
-      title: "Ethereum Classic",
-      url: "https://blockscout.com/etc/mainnet",
-      other?: true
-    },
-    %{
-      title: "RSK Mainnet",
-      url: "https://blockscout.com/rsk/mainnet",
+      title: "Elastos Ethereum Sidechain Testnet",
+      url: "https://explorer.elaeth.io",
       other?: true
     }
   ]
