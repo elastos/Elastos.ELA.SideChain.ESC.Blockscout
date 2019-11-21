@@ -6,15 +6,15 @@ defmodule BlockScoutWeb.LayoutView do
 
   @issue_url "https://github.com/poanetwork/cyber-republic/issues/new"
   @default_other_networks [
-    # %{
-    #   title: "Ethereum Mainnet",
-    #   url: "https://blockscout.com/eth/mainnet"
-    # },
     %{
-      title: "Elastos Ethereum Sidechain Testnet",
+      title: "Testnet",
+      url: "https://testnet.elaeth.io",
+      test_net?: true
+    },
+    %{
+      title: "Mainnet",
       url: "https://explorer.elaeth.io",
-      other?: true
-    }
+    },
   ]
 
   alias BlockScoutWeb.SocialMedia
