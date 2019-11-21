@@ -11,7 +11,7 @@ defmodule BlockScoutWeb.LayoutView do
     #   url: "https://blockscout.com/eth/mainnet"
     # },
     %{
-      title: "Elastos Ethereum Sidechain",
+      title: "Elastos Ethereum Sidechain Testnet",
       url: "https://explorer.elaeth.io",
       other?: true
     }
