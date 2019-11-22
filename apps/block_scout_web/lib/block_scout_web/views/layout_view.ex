@@ -4,7 +4,7 @@ defmodule BlockScoutWeb.LayoutView do
   alias Plug.Conn
   alias Poison.Parser
 
-  @issue_url "https://github.com/poanetwork/cyber-republic/issues/new"
+  @issue_url "https://github.com/cyber-republic/issues/new"
   @default_other_networks [
     %{
       title: "Testnet",
