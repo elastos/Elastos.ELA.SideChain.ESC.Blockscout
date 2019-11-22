@@ -7,13 +7,13 @@ defmodule BlockScoutWeb.LayoutView do
   @issue_url "https://github.com/cyber-republic/issues/new"
   @default_other_networks [
     %{
+      title: "Mainnet",
+      url: "https://explorer.elaeth.io",
+    },
+    %{
       title: "Testnet",
       url: "https://testnet.elaeth.io",
       test_net?: true
-    },
-    %{
-      title: "Mainnet",
-      url: "https://explorer.elaeth.io",
     },
   ]
 
