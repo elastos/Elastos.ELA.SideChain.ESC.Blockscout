@@ -12,7 +12,8 @@ ifeq ($(SYSTEM), Linux)
 	HOST=localhost
 endif
 
-DB_URL = postgresql://postgres:@$(HOST):5432/explorer?ssl=false
+# Please change the db password
+DB_URL = postgresql://postgres:POSTGRES_PASSWORD_CHANGE_ME@$(HOST):5432/explorer?ssl=false
 BLOCKSCOUT_CONTAINNER_PARAMS = -e 'MIX_ENV=prod' \
 															 -e 'DATABASE_URL=$(DB_URL)'
 
@@ -86,8 +87,9 @@ else
 endif
 else
 	@echo "==> Creating new PostgreSQL container"
+	# Please change the db password
 	@docker run -d --name $(PG_CONTAINER_NAME) \
-					-e POSTGRES_PASSWORD="" \
+					-e POSTGRES_PASSWORD="POSTGRES_PASSWORD_CHANGE_ME" \
 					-e POSTGRES_USER="postgres" \
 					-p 5432:5432 \
 					$(PG_CONTAINER_IMAGE)
