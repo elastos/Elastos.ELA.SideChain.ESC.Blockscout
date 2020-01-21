@@ -13,7 +13,7 @@ ifeq ($(SYSTEM), Linux)
 endif
 
 # Please change the db password
-DB_URL = postgresql://postgres:@POSTGRES_PASSWORD_CHANGE_ME$(HOST):5432/explorer?ssl=false
+DB_URL = postgresql://postgres:POSTGRES_PASSWORD_CHANGE_ME@$(HOST):5432/explorer?ssl=false
 BLOCKSCOUT_CONTAINNER_PARAMS = -e 'MIX_ENV=prod' \
 															 -e 'DATABASE_URL=$(DB_URL)'
 
