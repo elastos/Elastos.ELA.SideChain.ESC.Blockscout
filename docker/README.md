@@ -12,6 +12,10 @@ Since we regularly sync the code with poanetowrk's code, so we use git rebase to
 
 Regarding the code changes, please change both `mainnet(mainnet)` and `testnet(testnet)` branch and deploy both. 
 
+Things needed before the deployment:
+1. Postgres URL (docker or cloud database)
+2. RPC URL
+
 How to deploy:
 1. ssh to server
 2. cd blockscout/docker
