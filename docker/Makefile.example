@@ -100,6 +100,7 @@ endif
 start: build postgres
 	@echo "==> Starting blockscout"
 	@docker run -d --name $(BS_CONTAINER_NAME) \
+					--log-opt max-size=10m --log-opt max-file=5 \
 					$(BLOCKSCOUT_CONTAINNER_PARAMS) \
 					-p 0.0.0.0:4000:4000 \
 					$(DOCKER_IMAGE) /bin/sh -c "mix phx.server"
