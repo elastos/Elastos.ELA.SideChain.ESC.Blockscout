@@ -4,15 +4,15 @@ defmodule BlockScoutWeb.LayoutView do
   alias Plug.Conn
   alias Poison.Parser
 
-  @issue_url "https://github.com/cyber-republic/issues/new"
+  @issue_url "https://github.com/elastos/Elastos.ELA.SideChain.ETH.Blockscout/issues/new/choose"
   @default_other_networks [
     %{
       title: "Mainnet",
-      url: "https://explorer.elaeth.io",
+      url: "https://eth.elastos.io",
     },
     %{
       title: "Testnet",
-      url: "https://testnet.elaeth.io",
+      url: "https://eth-testnet.elastos.io",
       test_net?: true
     },
   ]
@@ -103,7 +103,7 @@ defmodule BlockScoutWeb.LayoutView do
           nil
 
         release_link_env_var == "" || release_link_env_var == nil ->
-          "https://github.com/poanetwork/blockscout/releases/tag/" <> version
+          "https://github.com/elastos/Elastos.ELA.SideChain.ETH.Blockscout/tree/" <> version
 
         true ->
           release_link_env_var
