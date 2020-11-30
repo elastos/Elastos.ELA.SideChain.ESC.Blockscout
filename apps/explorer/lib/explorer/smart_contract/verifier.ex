@@ -149,6 +149,13 @@ defmodule Explorer.SmartContract.Verifier do
         |> Enum.reverse()
         |> :binary.list_to_bin()
 
+      #% Solidity >= 0.5.9; xxl 20201130 fix the solidity verifier bug
+      "a365627a7a72305820" <>
+          <<_::binary-size(64)>> <> "6c6578706572" <> _constructor_arguments ->
+        extracted
+        |> Enum.reverse()
+        |> :binary.list_to_bin()  
+
       # Solidity >= 0.5.11 https://github.com/ethereum/solidity/blob/develop/Changelog.md#0511-2019-08-12
       # Metadata: Update the swarm hash to the current specification, changes bzzr0 to bzzr1 and urls to use bzz-raw://
       "a265627a7a72315820" <>
