@@ -10,11 +10,12 @@ defmodule Explorer.Application do
   alias Explorer.Chain.Cache.{
     Accounts,
     AddressSum,
+    AddressSumMinusBurnt,
     BlockCount,
     BlockNumber,
     Blocks,
+    GasUsage,
     NetVersion,
-    PendingTransactions,
     TransactionCount,
     Transactions,
     Uncles
@@ -40,6 +41,7 @@ defmodule Explorer.Application do
     base_children = [
       Explorer.Repo,
       Supervisor.Spec.worker(SpandexDatadog.ApiServer, [datadog_opts()]),
+      Supervisor.child_spec({Task.Supervisor, name: Explorer.HistoryTaskSupervisor}, id: Explorer.HistoryTaskSupervisor),
       Supervisor.child_spec({Task.Supervisor, name: Explorer.MarketTaskSupervisor}, id: Explorer.MarketTaskSupervisor),
       Supervisor.child_spec({Task.Supervisor, name: Explorer.GenesisDataTaskSupervisor}, id: GenesisDataTaskSupervisor),
       Supervisor.child_spec({Task.Supervisor, name: Explorer.TaskSupervisor}, id: Explorer.TaskSupervisor),
@@ -48,15 +50,16 @@ defmodule Explorer.Application do
       {Admin.Recovery, [[], [name: Admin.Recovery]]},
       TransactionCount,
       AddressSum,
+      AddressSumMinusBurnt,
       BlockCount,
       Blocks,
+      GasUsage,
       NetVersion,
       BlockNumber,
       con_cache_child_spec(MarketHistoryCache.cache_name()),
       con_cache_child_spec(RSK.cache_name(), ttl_check_interval: :timer.minutes(1), global_ttl: :timer.minutes(30)),
       Transactions,
       Accounts,
-      PendingTransactions,
       Uncles
     ]
 
@@ -73,12 +76,18 @@ defmodule Explorer.Application do
       configure(Explorer.ChainSpec.GenesisData),
       configure(Explorer.KnownTokens),
       configure(Explorer.Market.History.Cataloger),
+      configure(Explorer.Chain.Transaction.History.Historian),
       configure(Explorer.Chain.Events.Listener),
       configure(Explorer.Counters.AddressesWithBalanceCounter),
       configure(Explorer.Counters.AddressesCounter),
+      configure(Explorer.Counters.AddressTransactionsCounter),
+      configure(Explorer.Counters.AddressTransactionsGasUsageCounter),
+      configure(Explorer.Counters.TokenHoldersCounter),
+      configure(Explorer.Counters.TokenTransfersCounter),
       configure(Explorer.Counters.AverageBlockTime),
+      configure(Explorer.Counters.Bridge),
       configure(Explorer.Validator.MetadataProcessor),
-      configure(Explorer.Staking.EpochCounter)
+      configure(Explorer.Staking.ContractState)
     ]
     |> List.flatten()
   end

@@ -6,6 +6,7 @@ import socket from '../../socket'
 import { batchChannel } from '../../lib/utils'
 import { connectElements } from '../../lib/redux_helpers.js'
 import { createAsyncLoadStore } from '../../lib/async_listing_load'
+import '../address'
 
 const BATCH_THRESHOLD = 10
 
@@ -68,11 +69,20 @@ const elements = {
     }
   },
   '[data-selector="channel-batching-count"]': {
-    render ($el, state, oldState) {
+    render ($el, state) {
       const $channelBatching = $('[data-selector="channel-batching-message"]')
       if (!state.internalTransactionsBatch.length) return $channelBatching.hide()
       $channelBatching.show()
       $el[0].innerHTML = numeral(state.internalTransactionsBatch.length).format()
+    }
+  },
+  '[data-test="filter_dropdown"]': {
+    render ($el, state) {
+      if (state.emptyResponse && !state.isSearch) {
+        return $el.hide()
+      }
+
+      return $el.show()
     }
   }
 }

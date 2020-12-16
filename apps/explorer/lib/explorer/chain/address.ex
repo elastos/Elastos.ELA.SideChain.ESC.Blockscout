@@ -71,6 +71,17 @@ defmodule Explorer.Chain.Address do
              :names
            ]}
 
+  @derive {Jason.Encoder,
+           except: [
+             :__meta__,
+             :smart_contract,
+             :decompiled_smart_contracts,
+             :token,
+             :contracts_creation_internal_transaction,
+             :contracts_creation_transaction,
+             :names
+           ]}
+
   @primary_key {:hash, Hash.Address, autogenerate: false}
   schema "addresses" do
     field(:fetched_coin_balance, Wei)
@@ -145,7 +156,6 @@ defmodule Explorer.Chain.Address do
     end
   end
 
-  # https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP60.md
   def eth_checksum(hash) do
     string_hash =
       hash
@@ -169,6 +179,7 @@ defmodule Explorer.Chain.Address do
     end)
   end
 
+  # https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP60.md
   def rsk_checksum(hash) do
     chain_id = NetVersion.get_version()
 

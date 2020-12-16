@@ -4,23 +4,23 @@ defmodule BlockScoutWeb.API.RPC.StatsController do
   use Explorer.Schema
 
   alias Explorer.{Chain, ExchangeRates}
-  alias Explorer.Chain.Cache.AddressSum
+  alias Explorer.Chain.Cache.{AddressSum, AddressSumMinusBurnt}
   alias Explorer.Chain.Wei
 
   def tokensupply(conn, params) do
     with {:contractaddress_param, {:ok, contractaddress_param}} <- fetch_contractaddress(params),
          {:format, {:ok, address_hash}} <- to_address_hash(contractaddress_param),
          {:token, {:ok, token}} <- {:token, Chain.token_from_address_hash(address_hash)} do
-      render(conn, "tokensupply.json", token.total_supply)
+      render(conn, "tokensupply.json", total_supply: Decimal.to_string(token.total_supply))
     else
       {:contractaddress_param, :error} ->
-        render(conn, :error, error: "Query parameter contractaddress is required")
+        render(conn, :error, error: "Query parameter contract address is required")
 
       {:format, :error} ->
-        render(conn, :error, error: "Invalid contractaddress format")
+        render(conn, :error, error: "Invalid contract address format")
 
       {:token, {:error, :not_found}} ->
-        render(conn, :error, error: "contractaddress not found")
+        render(conn, :error, error: "contract address not found")
     end
   end
 
@@ -39,6 +39,24 @@ defmodule BlockScoutWeb.API.RPC.StatsController do
     cached_wei_total_supply = AddressSum.get_sum()
 
     render(conn, "ethsupply.json", total_supply: cached_wei_total_supply)
+  end
+
+  def coinsupply(conn, _params) do
+    cached_coin_total_supply_wei = AddressSumMinusBurnt.get_sum_minus_burnt()
+
+    coin_total_supply_wei =
+      if Decimal.cmp(cached_coin_total_supply_wei, 0) == :gt do
+        cached_coin_total_supply_wei
+      else
+        Chain.get_last_fetched_counter("sum_coin_total_supply_minus_burnt")
+      end
+
+    cached_coin_total_supply =
+      %Wei{value: Decimal.new(coin_total_supply_wei)}
+      |> Wei.to(:ether)
+      |> Decimal.to_string(:normal)
+
+    render(conn, "coinsupply.json", total_supply: cached_coin_total_supply)
   end
 
   def ethprice(conn, _params) do
