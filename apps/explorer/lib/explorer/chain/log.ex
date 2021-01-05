@@ -6,14 +6,16 @@ defmodule Explorer.Chain.Log do
   require Logger
 
   alias ABI.{Event, FunctionSelector}
-  alias Explorer.Chain.{Address, ContractMethod, Data, Hash, Transaction}
-  alias Explorer.Repo
+  alias Explorer.{Chain, Repo}
+  alias Explorer.Chain.{Address, Block, ContractMethod, Data, Hash, Transaction}
 
-  @required_attrs ~w(address_hash data index transaction_hash)a
-  @optional_attrs ~w(first_topic second_topic third_topic fourth_topic type)a
+  @required_attrs ~w(address_hash data block_hash index transaction_hash)a
+  @optional_attrs ~w(first_topic second_topic third_topic fourth_topic type block_number)a
 
   @typedoc """
    * `address` - address of contract that generate the event
+   * `block_hash` - hash of the block
+   * `block_number` - The block number that the transfer took place.
    * `address_hash` - foreign key for `address`
    * `data` - non-indexed log parameters.
    * `first_topic` - `topics[0]`
@@ -28,6 +30,8 @@ defmodule Explorer.Chain.Log do
   @type t :: %__MODULE__{
           address: %Ecto.Association.NotLoaded{} | Address.t(),
           address_hash: Hash.Address.t(),
+          block_hash: Hash.Full.t(),
+          block_number: non_neg_integer() | nil,
           data: Data.t(),
           first_topic: String.t(),
           second_topic: String.t(),
@@ -48,6 +52,7 @@ defmodule Explorer.Chain.Log do
     field(:fourth_topic, :string)
     field(:index, :integer, primary_key: true)
     field(:type, :string)
+    field(:block_number, :integer)
 
     timestamps()
 
@@ -55,6 +60,13 @@ defmodule Explorer.Chain.Log do
 
     belongs_to(:transaction, Transaction,
       foreign_key: :transaction_hash,
+      primary_key: true,
+      references: :hash,
+      type: Hash.Full
+    )
+
+    belongs_to(:block, Block,
+      foreign_key: :block_hash,
       primary_key: true,
       references: :hash,
       type: Hash.Full
@@ -69,6 +81,7 @@ defmodule Explorer.Chain.Log do
       ...>   %Explorer.Chain.Log{},
       ...>   %{
       ...>     address_hash: "0x8bf38d4764929064f2d4d3a56520a76ab3df415b",
+      ...>     block_hash: "0xf6b4b8c88df3ebd252ec476328334dc026cf66606a84fb769b3d3cbccc8471bd",
       ...>     data: "0x000000000000000000000000862d67cb0773ee3f8ce7ea89b328ffea861ab3ef",
       ...>     first_topic: "0x600bcf04a13e752d1e3670a5a9f1c21177ca2a93c6f5391d4f1298d098097c22",
       ...>     fourth_topic: nil,
@@ -106,22 +119,35 @@ defmodule Explorer.Chain.Log do
   @doc """
   Decode transaction log data.
   """
-  def decode(_log, %Transaction{to_address: nil}), do: {:error, :no_to_address}
-
-  def decode(log, transaction = %Transaction{to_address: %{smart_contract: %{abi: abi}}}) when not is_nil(abi) do
-    with {:ok, selector, mapping} <- find_and_decode(abi, log, transaction),
-         identifier <- Base.encode16(selector.method_id, case: :lower),
-         text <- function_call(selector.function, mapping),
-         do: {:ok, identifier, text, mapping}
-  end
 
   def decode(log, transaction) do
+    address_options = [
+      necessity_by_association: %{
+        :smart_contract => :optional
+      }
+    ]
+
+    case Chain.find_contract_address(log.address_hash, address_options, true) do
+      {:ok, %{smart_contract: %{abi: abi}}} ->
+        full_abi = Chain.combine_proxy_implementation_abi(log.address_hash, abi)
+
+        with {:ok, selector, mapping} <- find_and_decode(full_abi, log, transaction),
+             identifier <- Base.encode16(selector.method_id, case: :lower),
+             text <- function_call(selector.function, mapping),
+             do: {:ok, identifier, text, mapping}
+
+      _ ->
+        find_candidates(log, transaction)
+    end
+  end
+
+  defp find_candidates(log, transaction) do
     case log.first_topic do
       "0x" <> hex_part ->
         case Integer.parse(hex_part, 16) do
           {number, ""} ->
             <<method_id::binary-size(4), _rest::binary>> = :binary.encode_unsigned(number)
-            find_candidates(method_id, log, transaction)
+            find_candidates_query(method_id, log, transaction)
 
           _ ->
             {:error, :could_not_decode}
@@ -132,7 +158,7 @@ defmodule Explorer.Chain.Log do
     end
   end
 
-  defp find_candidates(method_id, log, transaction) do
+  defp find_candidates_query(method_id, log, transaction) do
     candidates_query =
       from(
         contract_method in ContractMethod,

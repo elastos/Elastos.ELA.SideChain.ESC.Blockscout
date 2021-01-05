@@ -22,6 +22,11 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
     RPCView.render("show.json", data: data)
   end
 
+  def render("pendingtxlist.json", %{transactions: transactions}) do
+    data = Enum.map(transactions, &prepare_pending_transaction/1)
+    RPCView.render("show.json", data: data)
+  end
+
   def render("txlist.json", %{transactions: transactions}) do
     data = Enum.map(transactions, &prepare_transaction/1)
     RPCView.render("show.json", data: data)
@@ -79,6 +84,22 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
     }
   end
 
+  defp prepare_pending_transaction(transaction) do
+    %{
+      "hash" => "#{transaction.hash}",
+      "nonce" => "#{transaction.nonce}",
+      "from" => "#{transaction.from_address_hash}",
+      "to" => "#{transaction.to_address_hash}",
+      "value" => "#{transaction.value.value}",
+      "gas" => "#{transaction.gas}",
+      "gasPrice" => "#{transaction.gas_price.value}",
+      "input" => "#{transaction.input}",
+      "contractAddress" => "#{transaction.created_contract_address_hash}",
+      "cumulativeGasUsed" => "#{transaction.cumulative_gas_used}",
+      "gasUsed" => "#{transaction.gas_used}"
+    }
+  end
+
   defp prepare_transaction(transaction) do
     %{
       "blockNumber" => "#{transaction.block_number}",
@@ -121,7 +142,7 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
     }
   end
 
-  defp prepare_token_transfer(token_transfer) do
+  defp prepare_common_token_transfer(token_transfer) do
     %{
       "blockNumber" => to_string(token_transfer.block_number),
       "timeStamp" => to_string(DateTime.to_unix(token_transfer.block_timestamp)),
@@ -132,7 +153,6 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
       "contractAddress" => to_string(token_transfer.token_contract_address_hash),
       "to" => to_string(token_transfer.to_address_hash),
       "logIndex" => to_string(token_transfer.token_log_index),
-      "value" => get_token_value(token_transfer),
       "tokenName" => token_transfer.token_name,
       "tokenSymbol" => token_transfer.token_symbol,
       "tokenDecimal" => to_string(token_transfer.token_decimals),
@@ -146,12 +166,20 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
     }
   end
 
-  defp get_token_value(%{token_type: "ERC-721"} = token_transfer) do
-    to_string(token_transfer.token_id)
+  defp prepare_token_transfer(%{token_type: "ERC-721"} = token_transfer) do
+    token_transfer
+    |> prepare_common_token_transfer()
+    |> Map.put_new(:tokenID, token_transfer.token_id)
   end
 
-  defp get_token_value(token_transfer) do
-    to_string(token_transfer.amount)
+  defp prepare_token_transfer(%{token_type: "ERC-20"} = token_transfer) do
+    token_transfer
+    |> prepare_common_token_transfer()
+    |> Map.put_new(:value, to_string(token_transfer.amount))
+  end
+
+  defp prepare_token_transfer(token_transfer) do
+    prepare_common_token_transfer(token_transfer)
   end
 
   defp prepare_block(block) do

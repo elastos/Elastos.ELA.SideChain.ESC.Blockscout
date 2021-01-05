@@ -192,6 +192,8 @@ defmodule BlockScoutWeb.TransactionViewTest do
         |> insert()
         |> with_block(block, status: :error)
 
+      insert(:pending_block_operation, block_hash: block.hash, fetch_internal_transactions: true)
+
       status = TransactionView.transaction_status(transaction)
       assert TransactionView.formatted_status(status) == "Error: (Awaiting internal transactions for reason)"
     end
@@ -200,7 +202,7 @@ defmodule BlockScoutWeb.TransactionViewTest do
       transaction =
         :transaction
         |> insert()
-        |> with_block(status: :error, internal_transactions_indexed_at: DateTime.utc_now(), error: "Out of Gas")
+        |> with_block(status: :error, error: "Out of Gas")
 
       status = TransactionView.transaction_status(transaction)
       assert TransactionView.formatted_status(status) == "Error: Out of Gas"
@@ -241,8 +243,8 @@ defmodule BlockScoutWeb.TransactionViewTest do
 
   describe "current_tab_name/1" do
     test "generates the correct tab name" do
-      token_transfers_path = "/page/0xSom3tH1ng/token_transfers/?additional_params=blah"
-      internal_transactions_path = "/page/0xSom3tH1ng/internal_transactions/?additional_params=blah"
+      token_transfers_path = "/page/0xSom3tH1ng/token-transfers/?additional_params=blah"
+      internal_transactions_path = "/page/0xSom3tH1ng/internal-transactions/?additional_params=blah"
       logs_path = "/page/0xSom3tH1ng/logs/?additional_params=blah"
 
       assert TransactionView.current_tab_name(token_transfers_path) == "Token Transfers"

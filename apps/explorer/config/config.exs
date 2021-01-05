@@ -9,10 +9,11 @@ use Mix.Config
 config :explorer,
   ecto_repos: [Explorer.Repo],
   coin: System.get_env("COIN") || "POA",
+  coingecko_coin_id: System.get_env("COINGECKO_COIN_ID"),
   token_functions_reader_max_retries: 3,
   allowed_evm_versions:
     System.get_env("ALLOWED_EVM_VERSIONS") ||
-      "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,default",
+      "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,default",
   include_uncles_in_average_block_time:
     if(System.get_env("UNCLES_IN_AVERAGE_BLOCK_TIME") == "true", do: true, else: false),
   healthy_blocks_period: System.get_env("HEALTHY_BLOCKS_PERIOD") || :timer.minutes(5),
@@ -20,9 +21,7 @@ config :explorer,
     if(System.get_env("DISABLE_WEBAPP") != "true",
       do: Explorer.Chain.Events.SimpleSender,
       else: Explorer.Chain.Events.DBSender
-    ),
-  index_internal_transactions_for_token_transfers:
-    if(System.get_env("INTERNAL_TRANSACTIONOS_FOR_TOKEN_TRANSFERS") == "true", do: true, else: false)
+    )
 
 average_block_period =
   case Integer.parse(System.get_env("AVERAGE_BLOCK_CACHE_PERIOD", "")) do
@@ -45,7 +44,7 @@ config :explorer, Explorer.ChainSpec.GenesisData,
   enabled: true,
   chain_spec_path: System.get_env("CHAIN_SPEC_PATH"),
   emission_format: System.get_env("EMISSION_FORMAT", "DEFAULT"),
-  rewards_contract_address: System.get_env("REWARDS_CONTRACT_ADDRESS", "0xeca443e8e1ab29971a45a9c57a6a9875701698a5")
+  rewards_contract_address: System.get_env("REWARDS_CONTRACT", "0xeca443e8e1ab29971a45a9c57a6a9875701698a5")
 
 config :explorer, Explorer.Chain.Cache.BlockNumber,
   enabled: true,
@@ -62,6 +61,11 @@ address_sum_global_ttl =
   end
 
 config :explorer, Explorer.Chain.Cache.AddressSum,
+  enabled: true,
+  ttl_check_interval: :timer.seconds(1),
+  global_ttl: address_sum_global_ttl
+
+config :explorer, Explorer.Chain.Cache.AddressSumMinusBurnt,
   enabled: true,
   ttl_check_interval: :timer.seconds(1),
   global_ttl: address_sum_global_ttl
@@ -84,13 +88,95 @@ config :explorer, Explorer.Counters.AddressesCounter,
   enable_consolidation: true,
   update_interval_in_seconds: balances_update_interval || 30 * 60
 
-config :explorer, Explorer.ExchangeRates, enabled: true, store: :ets
+address_transactions_counter_cache_period =
+  case Integer.parse(System.get_env("ADDRESS_TRANSACTIONS_COUNTER_CACHE_PERIOD", "")) do
+    {secs, ""} -> :timer.seconds(secs)
+    _ -> :timer.hours(1)
+  end
 
-config :explorer, Explorer.KnownTokens, enabled: true, store: :ets
+address_transactions_gas_usage_counter_cache_period =
+  case Integer.parse(System.get_env("ADDRESS_TRANSACTIONS_GAS_USAGE_COUNTER_CACHE_PERIOD", "")) do
+    {secs, ""} -> :timer.seconds(secs)
+    _ -> :timer.hours(1)
+  end
+
+config :explorer, Explorer.Counters.AddressTransactionsGasUsageCounter,
+  enabled: true,
+  enable_consolidation: true,
+  period: address_transactions_gas_usage_counter_cache_period
+
+token_holders_counter_cache_period =
+  case Integer.parse(System.get_env("TOKEN_HOLDERS_COUNTER_CACHE_PERIOD", "")) do
+    {secs, ""} -> :timer.seconds(secs)
+    _ -> :timer.hours(1)
+  end
+
+config :explorer, Explorer.Counters.TokenHoldersCounter,
+  enabled: true,
+  enable_consolidation: true,
+  period: token_holders_counter_cache_period
+
+token_transfers_counter_cache_period =
+  case Integer.parse(System.get_env("TOKEN_TRANSFERS_COUNTER_CACHE_PERIOD", "")) do
+    {secs, ""} -> :timer.seconds(secs)
+    _ -> :timer.hours(1)
+  end
+
+config :explorer, Explorer.Counters.TokenTransfersCounter,
+  enabled: true,
+  enable_consolidation: true,
+  period: token_transfers_counter_cache_period
+
+config :explorer, Explorer.Counters.AddressTransactionsCounter,
+  enabled: true,
+  enable_consolidation: true,
+  period: address_transactions_counter_cache_period
+
+bridge_market_cap_update_interval =
+  if System.get_env("BRIDGE_MARKET_CAP_UPDATE_INTERVAL") do
+    case Integer.parse(System.get_env("BRIDGE_MARKET_CAP_UPDATE_INTERVAL")) do
+      {integer, ""} -> integer
+      _ -> nil
+    end
+  end
+
+config :explorer, Explorer.Counters.Bridge,
+  enabled: if(System.get_env("SUPPLY_MODULE") === "TokenBridge", do: true, else: false),
+  enable_consolidation: System.get_env("DISABLE_BRIDGE_MARKET_CAP_UPDATER") !== "true",
+  update_interval_in_seconds: bridge_market_cap_update_interval || 30 * 60
+
+config :explorer, Explorer.ExchangeRates, enabled: System.get_env("DISABLE_EXCHANGE_RATES") != "true", store: :ets
+
+config :explorer, Explorer.KnownTokens, enabled: System.get_env("DISABLE_KNOWN_TOKENS") != "true", store: :ets
 
 config :explorer, Explorer.Integrations.EctoLogger, query_time_ms_threshold: :timer.seconds(2)
 
 config :explorer, Explorer.Market.History.Cataloger, enabled: System.get_env("DISABLE_INDEXER") != "true"
+
+txs_stats_init_lag =
+  System.get_env("TXS_HISTORIAN_INIT_LAG", "0")
+  |> Integer.parse()
+  |> elem(0)
+  |> :timer.minutes()
+
+txs_stats_days_to_compile_at_init =
+  System.get_env("TXS_STATS_DAYS_TO_COMPILE_AT_INIT", "40")
+  |> Integer.parse()
+  |> elem(0)
+
+config :explorer, Explorer.Chain.Transaction.History.Historian,
+  enabled: System.get_env("ENABLE_TXS_STATS", "false") != "false",
+  init_lag: txs_stats_init_lag,
+  days_to_compile_at_init: txs_stats_days_to_compile_at_init
+
+history_fetch_interval =
+  case Integer.parse(System.get_env("HISTORY_FETCH_INTERVAL", "")) do
+    {mins, ""} -> mins
+    _ -> 60
+  end
+  |> :timer.minutes()
+
+config :explorer, Explorer.History.Process, history_fetch_interval: history_fetch_interval
 
 config :explorer, Explorer.Repo, migration_timestamps: [type: :utc_datetime_usec]
 
@@ -109,16 +195,16 @@ else
   config :explorer, Explorer.Validator.MetadataProcessor, enabled: false
 end
 
-config :explorer, Explorer.Staking.PoolsReader,
-  validators_contract_address: System.get_env("POS_VALIDATORS_CONTRACT"),
-  staking_contract_address: System.get_env("POS_STAKING_CONTRACT")
+config :explorer, Explorer.Chain.Block.Reward,
+  validators_contract_address: System.get_env("VALIDATORS_CONTRACT"),
+  keys_manager_contract_address: System.get_env("KEYS_MANAGER_CONTRACT")
 
 if System.get_env("POS_STAKING_CONTRACT") do
-  config :explorer, Explorer.Staking.EpochCounter,
+  config :explorer, Explorer.Staking.ContractState,
     enabled: true,
     staking_contract_address: System.get_env("POS_STAKING_CONTRACT")
 else
-  config :explorer, Explorer.Staking.EpochCounter, enabled: false
+  config :explorer, Explorer.Staking.ContractState, enabled: false
 end
 
 case System.get_env("SUPPLY_MODULE") do
@@ -174,6 +260,11 @@ config :explorer, Explorer.Chain.Cache.Accounts,
   global_ttl: if(System.get_env("DISABLE_INDEXER") == "true", do: :timer.seconds(5))
 
 config :explorer, Explorer.Chain.Cache.PendingTransactions,
+  enabled:
+    if(System.get_env("ETHEREUM_JSONRPC_VARIANT") == "besu",
+      do: false,
+      else: true
+    ),
   ttl_check_interval: if(System.get_env("DISABLE_INDEXER") == "true", do: :timer.seconds(1), else: false),
   global_ttl: if(System.get_env("DISABLE_INDEXER") == "true", do: :timer.seconds(5))
 

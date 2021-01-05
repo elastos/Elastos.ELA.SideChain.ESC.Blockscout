@@ -134,7 +134,9 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
         transaction: transaction,
         index: 0,
         from_address: address,
-        call_type: :call
+        call_type: :call,
+        block_hash: transaction.block_hash,
+        block_index: 0
       }
 
       internal_transaction =
@@ -178,7 +180,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
         "first" => 1
       }
 
-      conn = get(conn, "/graphql", query: query, variables: variables)
+      conn = post(conn, "/graphql", query: query, variables: variables)
 
       assert json_response(conn, 200) == %{
                "data" => %{
@@ -245,7 +247,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
         "first" => 1
       }
 
-      conn = get(conn, "/graphql", query: query, variables: variables)
+      conn = post(conn, "/graphql", query: query, variables: variables)
 
       assert json_response(conn, 200) == %{
                "data" => %{
@@ -259,11 +261,28 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
     end
 
     test "internal transactions are ordered by ascending index", %{conn: conn} do
-      transaction = insert(:transaction)
+      transaction = insert(:transaction) |> with_block()
 
-      insert(:internal_transaction, transaction: transaction, index: 2)
-      insert(:internal_transaction, transaction: transaction, index: 0)
-      insert(:internal_transaction, transaction: transaction, index: 1)
+      insert(:internal_transaction,
+        transaction: transaction,
+        index: 2,
+        block_hash: transaction.block_hash,
+        block_index: 2
+      )
+
+      insert(:internal_transaction,
+        transaction: transaction,
+        index: 0,
+        block_hash: transaction.block_hash,
+        block_index: 0
+      )
+
+      insert(:internal_transaction,
+        transaction: transaction,
+        index: 1,
+        block_hash: transaction.block_hash,
+        block_index: 1
+      )
 
       query = """
       query ($hash: FullHash!, $first: Int!) {
@@ -287,7 +306,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
 
       response =
         conn
-        |> get("/graphql", query: query, variables: variables)
+        |> post("/graphql", query: query, variables: variables)
         |> json_response(200)
 
       internal_transactions = get_in(response, ["data", "transaction", "internal_transactions", "edges"])
@@ -322,7 +341,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
 
       response1 =
         conn
-        |> get("/graphql", query: query1, variables: variables1)
+        |> post("/graphql", query: query1, variables: variables1)
         |> json_response(200)
 
       assert %{"errors" => [error1, error2, error3]} = response1
@@ -353,7 +372,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
 
       response2 =
         conn
-        |> get("/graphql", query: query2, variables: variables2)
+        |> post("/graphql", query: query2, variables: variables2)
         |> json_response(200)
 
       assert %{"errors" => [error1, error2, error3]} = response2
@@ -370,11 +389,28 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
       #
       # This test ensures support for a 'count' argument.
 
-      transaction = insert(:transaction)
+      transaction = insert(:transaction) |> with_block()
 
-      insert(:internal_transaction, transaction: transaction, index: 2)
-      insert(:internal_transaction, transaction: transaction, index: 0)
-      insert(:internal_transaction, transaction: transaction, index: 1)
+      insert(:internal_transaction,
+        transaction: transaction,
+        index: 2,
+        block_hash: transaction.block_hash,
+        block_index: 2
+      )
+
+      insert(:internal_transaction,
+        transaction: transaction,
+        index: 0,
+        block_hash: transaction.block_hash,
+        block_index: 0
+      )
+
+      insert(:internal_transaction,
+        transaction: transaction,
+        index: 1,
+        block_hash: transaction.block_hash,
+        block_index: 1
+      )
 
       query = """
       query ($hash: FullHash!, $last: Int!, $count: Int!) {
@@ -399,7 +435,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
 
       [internal_transaction] =
         conn
-        |> get("/graphql", query: query, variables: variables)
+        |> post("/graphql", query: query, variables: variables)
         |> json_response(200)
         |> get_in(["data", "transaction", "internal_transactions", "edges"])
 
@@ -407,14 +443,19 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
     end
 
     test "pagination support with 'first' and 'after' arguments", %{conn: conn} do
-      transaction = insert(:transaction)
+      transaction = insert(:transaction) |> with_block()
 
       for index <- 0..5 do
-        insert(:internal_transaction_create, transaction: transaction, index: index)
+        insert(:internal_transaction_create,
+          transaction: transaction,
+          index: index,
+          block_hash: transaction.block_hash,
+          block_index: index
+        )
       end
 
       query1 = """
-      query ($hash: AddressHash!, $first: Int!) {
+      query ($hash: FullHash!, $first: Int!) {
         transaction(hash: $hash) {
           internal_transactions(first: $first) {
             page_info {
@@ -438,7 +479,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
         "first" => 2
       }
 
-      conn = get(conn, "/graphql", query: query1, variables: variables1)
+      conn = post(conn, "/graphql", query: query1, variables: variables1)
 
       %{"data" => %{"transaction" => %{"internal_transactions" => page1}}} = json_response(conn, 200)
 
@@ -452,7 +493,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
         |> Map.get("cursor")
 
       query2 = """
-      query ($hash: AddressHash!, $first: Int!, $after: ID!) {
+      query ($hash: FullHash!, $first: Int!, $after: String!) {
         transaction(hash: $hash) {
           internal_transactions(first: $first, after: $after) {
             page_info {
@@ -479,7 +520,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
 
       page2 =
         conn
-        |> get("/graphql", query: query2, variables: variables2)
+        |> post("/graphql", query: query2, variables: variables2)
         |> json_response(200)
         |> get_in(["data", "transaction", "internal_transactions"])
 
@@ -500,7 +541,7 @@ defmodule BlockScoutWeb.Schema.Query.TransactionTest do
 
       page3 =
         conn
-        |> get("/graphql", query: query2, variables: variables3)
+        |> post("/graphql", query: query2, variables: variables3)
         |> json_response(200)
         |> get_in(["data", "transaction", "internal_transactions"])
 

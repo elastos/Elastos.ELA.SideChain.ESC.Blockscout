@@ -37,6 +37,27 @@ defmodule BlockScoutWeb.Etherscan do
     ]
   }
 
+  @account_pendingtxlist_example_value %{
+    "status" => "1",
+    "message" => "OK",
+    "result" => [
+      %{
+        "hash" => "0x98beb27135aa0a25650557005ad962919d6a278c4b3dde7f4f6a3a1e65aa746c",
+        "nonce" => "0",
+        "from" => "0x3fb1cd2cd96c6d5c0b5eb3322d807b34482481d4",
+        "to" => "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae",
+        "value" => "0",
+        "gas" => "122261",
+        "gasPrice" => "50000000000",
+        "input" =>
+          "0xf00d4b5d000000000000000000000000036c8cecce8d8bbf0831d840d7f29c9e3ddefa63000000000000000000000000c5a96db085dda36ffbe390f455315d30d6d3dc52",
+        "contractAddress" => "",
+        "cumulativeGasUsed" => "122207",
+        "gasUsed" => "122207"
+      }
+    ]
+  }
+
   @account_txlist_example_value %{
     "status" => "1",
     "message" => "OK",
@@ -251,7 +272,7 @@ defmodule BlockScoutWeb.Etherscan do
 
   @token_gettoken_example_value_error %{
     "status" => "0",
-    "message" => "Invalid contractaddress format",
+    "message" => "Invalid contract address format",
     "result" => nil
   }
 
@@ -272,6 +293,8 @@ defmodule BlockScoutWeb.Etherscan do
     "message" => "OK",
     "result" => "101959776311500000000000000"
   }
+
+  @stats_coinsupply_example_value 101_959_776.3115
 
   @stats_ethprice_example_value %{
     "status" => "1",
@@ -468,7 +491,8 @@ defmodule BlockScoutWeb.Etherscan do
       "success" => true,
       "timeStamp" => "1541018182",
       "to" => "0x000000000000000000000000000000000000000d",
-      "value" => "67612"
+      "value" => "67612",
+      revertReason: "No credit of that type"
     }
   }
 
@@ -589,6 +613,12 @@ defmodule BlockScoutWeb.Etherscan do
     example: ~s("Some Token Name")
   }
 
+  @token_id_type %{
+    type: "integer",
+    definition: "id of token",
+    example: ~s("0")
+  }
+
   @token_symbol_type %{
     type: "string",
     definition: "Trading symbol of the token.",
@@ -599,6 +629,12 @@ defmodule BlockScoutWeb.Etherscan do
     type: "integer",
     definition: "Number of decimal places the token can be subdivided to.",
     example: ~s("18")
+  }
+
+  @revert_reason_type %{
+    type: "revert_reason",
+    definition: "Revert reason of transaction.",
+    example: ~s("No credit of that type")
   }
 
   @logs_details %{
@@ -752,6 +788,7 @@ defmodule BlockScoutWeb.Etherscan do
         example: ~s("663046792267785498951364")
       },
       tokenName: @token_name_type,
+      tokenID: @token_id_type,
       tokenSymbol: @token_symbol_type,
       tokenDecimal: @token_decimal_type,
       transactionIndex: @transaction_index_type,
@@ -1001,7 +1038,8 @@ defmodule BlockScoutWeb.Etherscan do
       logs: %{
         type: "array",
         array_type: @logs_details
-      }
+      },
+      revertReason: @revert_reason_type
     }
   }
 
@@ -1174,6 +1212,56 @@ defmodule BlockScoutWeb.Etherscan do
         code: "200",
         description: "error",
         example_value: Jason.encode!(@account_balance_example_value_error)
+      }
+    ]
+  }
+
+  @account_pendingtxlist_action %{
+    name: "pendingtxlist",
+    description: "Get pending transactions by address.",
+    required_params: [
+      %{
+        key: "address",
+        placeholder: "addressHash",
+        type: "string",
+        description: "A 160-bit code used for identifying Accounts."
+      }
+    ],
+    optional_params: [
+      %{
+        key: "page",
+        type: "integer",
+        description:
+          "A nonnegative integer that represents the page number to be used for pagination. 'offset' must be provided in conjunction."
+      },
+      %{
+        key: "offset",
+        type: "integer",
+        description:
+          "A nonnegative integer that represents the maximum number of records to return when paginating. 'page' must be provided in conjunction."
+      }
+    ],
+    responses: [
+      %{
+        code: "200",
+        description: "successful operation",
+        example_value: Jason.encode!(@account_pendingtxlist_example_value),
+        model: %{
+          name: "Result",
+          fields: %{
+            status: @status_type,
+            message: @message_type,
+            result: %{
+              type: "array",
+              array_type: @transaction
+            }
+          }
+        }
+      },
+      %{
+        code: "200",
+        description: "error",
+        example_value: Jason.encode!(@account_txlist_example_value_error)
       }
     ]
   }
@@ -1821,8 +1909,32 @@ defmodule BlockScoutWeb.Etherscan do
             message: @message_type,
             result: %{
               type: "integer",
-              description: "The total supply.",
+              description: "The total supply in Wei from DB.",
               example: ~s("101959776311500000000000000")
+            }
+          }
+        }
+      }
+    ]
+  }
+
+  @stats_coinsupply_action %{
+    name: "coinsupply",
+    description: "Get total coin supply from DB minus burnt number.",
+    required_params: [],
+    optional_params: [],
+    responses: [
+      %{
+        code: "200",
+        description: "successful operation",
+        example_value: Jason.encode!(@stats_coinsupply_example_value),
+        model: %{
+          name: "Result",
+          fields: %{
+            result: %{
+              type: "integer",
+              description: "The total supply from DB minus burnt number in coin dimension.",
+              example: 101_959_776.3115
             }
           }
         }
@@ -1988,9 +2100,9 @@ defmodule BlockScoutWeb.Etherscan do
     <div class='tab-pane fade show active'>
     <div class="tile tile-muted p-1">
     <div class="m-2">
-    curl -d '{"addressHash":"0xd6984e092b51337032cf0300c7291e4839be37e1","compilerVersion":"v0.5.4+commit.9549d8ff",
-    "contractSourceCode":"pragma solidity ^0.5.4;\n","name":"Test","optimization":false}'
-    -H "Content-Type: application/json" -X POST  "https://blockscout.com/eth/kovan/api?module=contract&action=verify"
+    curl -d '{"addressHash":"0xc63BB6555C90846afACaC08A0F0Aa5caFCB382a1","compilerVersion":"v0.5.4+commit.9549d8ff",
+    "contractSourceCode":"pragma solidity ^0.5.4; \ncontract Test {\n}","name":"Test","optimization":false}'
+    -H "Content-Type: application/json" -X POST  "https://blockscout.com/poa/sokol/api?module=contract&action=verify"
     </pre>
     </div>
     </div>
@@ -2033,6 +2145,12 @@ defmodule BlockScoutWeb.Etherscan do
         key: "constructorArguments",
         type: "string",
         description: "The constructor argument data provided."
+      },
+      %{
+        key: "autodetectConstructorArguments",
+        placeholder: false,
+        type: "boolean",
+        description: "Whether or not automatically detect constructor argument."
       },
       %{
         key: "evmVersion",
@@ -2310,6 +2428,7 @@ defmodule BlockScoutWeb.Etherscan do
       @account_eth_get_balance_action,
       @account_balance_action,
       @account_balancemulti_action,
+      @account_pendingtxlist_action,
       @account_txlist_action,
       @account_txlistinternal_action,
       @account_tokentx_action,
@@ -2336,6 +2455,7 @@ defmodule BlockScoutWeb.Etherscan do
       @stats_tokensupply_action,
       @stats_ethsupplyexchange_action,
       @stats_ethsupply_action,
+      @stats_coinsupply_action,
       @stats_ethprice_action
     ]
   }
