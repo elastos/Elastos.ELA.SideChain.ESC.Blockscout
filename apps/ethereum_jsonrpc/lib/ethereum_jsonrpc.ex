@@ -344,6 +344,8 @@ defmodule EthereumJSONRPC do
           json_rpc_named_arguments
         ) :: {:ok, %{logs: list(), receipts: list()}} | {:error, reason :: term}
   def fetch_transaction_receipts(transactions_params, json_rpc_named_arguments) when is_list(transactions_params) do
+    #require Logger
+      #Logger.warn("-=-=-=-=-=-=-=-=-==-=-fetch_transaction_receipts ==-=-=-=-=-=-=-=: #{inspect(Receipts.fetch(transactions_params, json_rpc_named_arguments))}")
     Receipts.fetch(transactions_params, json_rpc_named_arguments)
   end
 

@@ -65,6 +65,11 @@ export const asyncInitialState = {
 }
 
 export function asyncReducer (state = asyncInitialState, action) {
+  // console.log("-=-=-==--======asyncReducer=============")
+  // console.log(action.type)
+  // console.log(action.items)
+  // console.log(action)
+  // console.log(state)
   switch (action.type) {
     case 'ELEMENTS_LOAD': {
       return Object.assign({}, state, {
@@ -91,6 +96,8 @@ export function asyncReducer (state = asyncInitialState, action) {
       })
     }
     case 'ITEMS_FETCHED': {
+      // console.log("-=-=-==--======ITEMS_FETCHED=============")
+      // console.log(action.items)
       var prevPagePath = null
 
       if (state.pagesStack.length >= 2) {
@@ -167,6 +174,7 @@ export const elements = {
   },
   '[data-async-listing] [data-items]': {
     render ($el, state, oldState) {
+      // console.log(state.items)
       if (state.items === oldState.items) return
 
       if (state.itemKey) {
@@ -277,6 +285,10 @@ export function createAsyncLoadStore (reducer, initialState, itemKey) {
   const state = merge(asyncInitialState, initialState)
   const store = createStore(reduceReducers(asyncReducer, reducer, state))
 
+  // console.log("-=-=-=-==-=- createAsyncLoadStore =-=-=-=--=-==-=-=")
+  // console.log(initialState)
+
+
   if (typeof itemKey !== 'undefined') {
     store.dispatch({
       type: 'ADD_ITEM_KEY',
@@ -294,6 +306,8 @@ export function refreshPage (store) {
 }
 
 function loadPage (store, path) {
+  // console.log("-=-=-=-==-=- loadPage =-=-=-=--=-==-=-=")
+  // console.log(store.getState().additionalParams, path)
   store.dispatch({ type: 'START_REQUEST', path })
   $.getJSON(path, merge({ type: 'JSON' }, store.getState().additionalParams))
     .done(response => store.dispatch(Object.assign({ type: 'ITEMS_FETCHED' }, humps.camelizeKeys(response))))

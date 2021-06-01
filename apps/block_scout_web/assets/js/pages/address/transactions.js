@@ -17,6 +17,8 @@ export function reducer (state, action) {
   switch (action.type) {
     case 'PAGE_LOAD':
     case 'ELEMENTS_LOAD': {
+      // console.log("-=-=-=-==-=-  ELEMENTS_LOAD=-=-=-=--=-==-=-=")
+      // console.log(state.items)
       return Object.assign({}, state, omit(action, 'type'))
     }
     case 'CHANNEL_DISCONNECTED': {
@@ -64,6 +66,10 @@ const elements = {
 
 if ($('[data-page="address-transactions"]').length) {
   const store = createAsyncLoadStore(reducer, initialState, 'dataset.identifierHash')
+
+  // console.log("-=-=-=-==-=-  =-=-=-=--=-==-=-=")
+  // console.log(initialState)
+
   const addressHash = $('[data-page="address-details"]')[0].dataset.pageAddressHash
   const { filter, blockNumber } = humps.camelizeKeys(URI(window.location).query(true))
 

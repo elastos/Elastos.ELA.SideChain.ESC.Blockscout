@@ -4,6 +4,8 @@
       <%= cond do %>
         <% @token_transfer.to_address.hash == @burn_address_hash -> %>
           <%= gettext("Token Burning") %>
+        <% @token_transfer.from_address.hash == @burn_address_hash && (Ecto.assoc_loaded?(@token_transfer.token)) && (@token_transfer.token.type == "Main-TopUp") -> %>
+          <%= gettext("Main TopUp") %>
         <% @token_transfer.from_address.hash == @burn_address_hash -> %>
           <%= gettext("Token Minting") %>
         <% true -> %>

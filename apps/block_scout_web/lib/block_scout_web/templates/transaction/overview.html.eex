@@ -228,7 +228,11 @@
             <% end %>
             <% mintings = aggregate_token_mintings(transaction_with_transfers.token_transfers) %>
             <%= if Enum.count(mintings) > 0 do %>
-              <h2 class="card-title balance-card-title"><%= token_type_name(type)%><%= gettext " Token Minting" %></h2>
+              <%= if Enum.at(mintings, 0).token.type == "Main-TopUp" do %>
+                <h2 class="card-title balance-card-title"><%= token_type_name(type)%><%= gettext " Main TopUp" %></h2>
+              <% else %>
+                <h2 class="card-title balance-card-title"><%= token_type_name(type)%><%= gettext " Token Minting" %></h2>
+              <% end %>
               <div class="text-right">
               <%= for transfer  <- mintings do %>
                 <h3 class="address-balance-text">
