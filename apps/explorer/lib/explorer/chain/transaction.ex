@@ -526,6 +526,11 @@ defmodule Explorer.Chain.Transaction do
   end
 
   def matching_address_queries_list(query, _direction, address_hash) do
+    """
+    require Logger
+    Logger.warn("-=-=-=-=-=-=-=-=-==-=-matching_address_queries_list==-=-=-=-=-=-=-=: #{inspect(address_hash)}")
+    """
+
     [
       where(query, [t], t.from_address_hash == ^address_hash),
       where(query, [t], t.to_address_hash == ^address_hash),

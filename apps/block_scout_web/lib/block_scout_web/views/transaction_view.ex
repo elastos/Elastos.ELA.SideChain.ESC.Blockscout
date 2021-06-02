@@ -21,10 +21,12 @@ defmodule BlockScoutWeb.TransactionView do
 
   @token_burning_title "Token Burning"
   @token_minting_title "Token Minting"
+  @token_topup_title "Main TopUp"
   @token_transfer_title "Token Transfer"
 
   @token_burning_type "token-burning"
   @token_minting_type "token-minting"
+  @token_topup_type "main-topup"
   @token_transfer_type "token-transfer"
 
   defguardp is_transaction_type(mod) when mod in [InternalTransaction, Transaction]
@@ -331,6 +333,7 @@ defmodule BlockScoutWeb.TransactionView do
         case token_transfer_type do
           @token_minting_type -> gettext(@token_minting_title)
           @token_burning_type -> gettext(@token_burning_title)
+          @token_topup_type -> gettext(@token_topup_title)
           @token_transfer_type -> gettext(@token_transfer_title)
         end
 
@@ -363,6 +366,10 @@ defmodule BlockScoutWeb.TransactionView do
   """
   def value(%mod{value: value}, opts \\ []) when is_transaction_type(mod) do
     include_label? = Keyword.get(opts, :include_label, true)
+    """
+    require Logger
+    Logger.warn("-=-=-=-=-=-=-=-=-==-=-cqcqcqcqcqcqcqcqcqcqcqcqcqcqccq==-=-=-=-=-=-=-=: #{inspect(value)}")
+    """
     format_wei_value(value, :ether, include_unit_label: include_label?)
   end
 
@@ -404,7 +411,13 @@ defmodule BlockScoutWeb.TransactionView do
         token_transfer.to_address_hash == @burn_address_hash ->
           update_transfer_type_if_burning(type)
 
-        token_transfer.from_address_hash == @burn_address_hash ->
+        require Logger
+         Logger.warn("-=-=-=-=-=-=-=-=-==-=-get_token_transfer_type==-=-=-=-=-=-=-= #{inspect(token_transfer)}")
+
+        (token_transfer.from_address_hash == @burn_address_hash) && (Ecto.assoc_loaded?(token_transfer.token)) && (token_transfer.token.type == "Main-TopUp") ->
+          update_transfer_type_if_hotup(type)
+
+        (token_transfer.from_address_hash == @burn_address_hash)  ->
           update_transfer_type_if_minting(type)
 
         true ->
@@ -428,4 +441,13 @@ defmodule BlockScoutWeb.TransactionView do
       _ -> type
     end
   end
+
+  defp update_transfer_type_if_hotup(type) do
+    case type do
+      "" -> @token_topup_type
+      @token_minting_type -> @token_topup_type
+      _ -> type
+    end
+  end
+
 end
