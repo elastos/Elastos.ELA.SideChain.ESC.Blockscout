@@ -6,7 +6,12 @@ defmodule Indexer.Transform.TokenTransfers do
   require Logger
 
   alias ABI.TypeDecoder
-  alias Explorer.Chain.TokenTransfer
+  alias Explorer.{Chain, Repo}
+  alias Explorer.Chain.{Token, TokenTransfer}
+  alias Explorer.Token.MetadataRetriever
+
+  @burn_address "0x0000000000000000000000000000000000000000"
+  @topup_address "0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a"
 
   @doc """
   Returns a list of token transfers given a list of logs.
@@ -14,12 +19,22 @@ defmodule Indexer.Transform.TokenTransfers do
   def parse(logs) do
     initial_acc = %{tokens: [], token_transfers: []}
 
+    """
+    require Logger
+    Logger.warn("-=-=-=-=-=-=-=-=-==-=-ddddd==-=-=-=-=-=-=-=: #{inspect(logs)}")
+    """
+
     logs
-    |> Enum.filter(&(&1.first_topic == unquote(TokenTransfer.constant())))
+    |> Enum.filter(&(&1.first_topic == unquote(TokenTransfer.constant()) || &1.first_topic == @topup_address))
     |> Enum.reduce(initial_acc, &do_parse/2)
   end
 
   defp do_parse(log, %{tokens: tokens, token_transfers: token_transfers} = acc) do
+
+    """
+    Logger.warn("-=-=-=-=-=-=-=-=-==-=-do_parse==-=-=-=-=-=-=-=: #{inspect(log)}")
+    """
+
     {token, token_transfer} = parse_params(log)
 
     %{
@@ -32,6 +47,38 @@ defmodule Indexer.Transform.TokenTransfers do
       acc
   end
 
+  # Main TopUp transfer
+  defp parse_params(%{first_topic: @topup_address, second_topic: second_topic, third_topic: third_topic, fourth_topic: fourth_topic} = log)
+       when not is_nil(second_topic) and not is_nil(third_topic) and not is_nil(fourth_topic) do
+
+       """
+       Logger.warn("-=-=-=-=-=-=-=-=-==-=-parse_paramsccccccccc==-=-=-=-=-=-=-=: #{inspect(fourth_topic)}")
+       """
+
+      token_transfer = %{
+        amount: 0,
+        block_number: log.block_number,
+        log_index: log.index,
+        block_hash: log.block_hash,
+        from_address_hash: log.address_hash,
+        to_address_hash: truncate_address_hash(log.fourth_topic),
+        token_contract_address_hash: log.address_hash,
+        token_id: -1,
+        transaction_hash: log.transaction_hash,
+        token_type: "Main-TopUp"
+      }
+
+      token = %{
+        contract_address_hash: log.address_hash,
+        type: "Main-TopUp"
+      }
+
+      update_token(log.address_hash, token_transfer)
+
+      {token, token_transfer}
+
+  end
+
   # ERC-20 token transfer
   defp parse_params(%{second_topic: second_topic, third_topic: third_topic, fourth_topic: nil} = log)
        when not is_nil(second_topic) and not is_nil(third_topic) do
@@ -40,6 +87,7 @@ defmodule Indexer.Transform.TokenTransfers do
     token_transfer = %{
       amount: Decimal.new(amount || 0),
       block_number: log.block_number,
+      block_hash: log.block_hash,
       log_index: log.index,
       from_address_hash: truncate_address_hash(log.second_topic),
       to_address_hash: truncate_address_hash(log.third_topic),
@@ -53,6 +101,8 @@ defmodule Indexer.Transform.TokenTransfers do
       type: "ERC-20"
     }
 
+    update_token(log.address_hash, token_transfer)
+
     {token, token_transfer}
   end
 
@@ -64,6 +114,7 @@ defmodule Indexer.Transform.TokenTransfers do
     token_transfer = %{
       block_number: log.block_number,
       log_index: log.index,
+      block_hash: log.block_hash,
       from_address_hash: truncate_address_hash(log.second_topic),
       to_address_hash: truncate_address_hash(log.third_topic),
       token_contract_address_hash: log.address_hash,
@@ -77,6 +128,8 @@ defmodule Indexer.Transform.TokenTransfers do
       type: "ERC-721"
     }
 
+    update_token(log.address_hash, token_transfer)
+
     {token, token_transfer}
   end
 
@@ -87,6 +140,7 @@ defmodule Indexer.Transform.TokenTransfers do
 
     token_transfer = %{
       block_number: log.block_number,
+      block_hash: log.block_hash,
       log_index: log.index,
       from_address_hash: encode_address_hash(from_address_hash),
       to_address_hash: encode_address_hash(to_address_hash),
@@ -101,7 +155,31 @@ defmodule Indexer.Transform.TokenTransfers do
       type: "ERC-721"
     }
 
+    update_token(log.address_hash, token_transfer)
+
     {token, token_transfer}
+  end
+
+  defp update_token(address_hash_string, token_transfer) do
+    if token_transfer.to_address_hash == @burn_address || token_transfer.from_address_hash == @burn_address do
+      {:ok, address_hash} = Chain.string_to_address_hash(address_hash_string)
+
+      token_params =
+        address_hash_string
+        |> MetadataRetriever.get_functions_of()
+
+      token = Repo.get_by(Token, contract_address_hash: address_hash)
+
+      if token do
+        token_to_update =
+          token
+          |> Repo.preload([:contract_address])
+
+        {:ok, _} = Chain.update_token(%{token_to_update | updated_at: DateTime.utc_now()}, token_params)
+      end
+    end
+
+    :ok
   end
 
   defp truncate_address_hash(nil), do: "0x0000000000000000000000000000000000000000"

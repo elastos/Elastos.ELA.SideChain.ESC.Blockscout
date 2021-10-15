@@ -25,5 +25,6 @@
 
       </div> <!-- Card Body -->
     </div> <!-- Card -->
+    <script defer data-cfasync="false" src="<%= static_path(@conn, "/js/address-validations.js") %>"></script>
   <section>
 </section>

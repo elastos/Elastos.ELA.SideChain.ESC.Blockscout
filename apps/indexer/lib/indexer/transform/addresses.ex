@@ -426,6 +426,10 @@ defmodule Indexer.Transform.Addresses do
         }) :: [params]
   def extract_addresses(fetched_data, options \\ []) when is_map(fetched_data) and is_list(options) do
     state = struct!(__MODULE__, options)
+    """
+    require Logger
+    Logger.warn("-=-=-=-=-=-=-=-=-==-=-extract_addresses==-=-=-=-=-=-=-=: #{inspect(fetched_data)}")
+    """
 
     addresses =
       for {entity_key, entity_fields} <- @entity_to_address_map,

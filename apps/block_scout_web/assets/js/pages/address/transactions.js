@@ -5,6 +5,7 @@ import humps from 'humps'
 import { subscribeChannel } from '../../socket'
 import { connectElements } from '../../lib/redux_helpers.js'
 import { createAsyncLoadStore } from '../../lib/async_listing_load'
+import '../address'
 
 export const initialState = {
   addressHash: null,
@@ -16,6 +17,8 @@ export function reducer (state, action) {
   switch (action.type) {
     case 'PAGE_LOAD':
     case 'ELEMENTS_LOAD': {
+      // console.log("-=-=-=-==-=-  ELEMENTS_LOAD=-=-=-=--=-==-=-=")
+      // console.log(state.items)
       return Object.assign({}, state, omit(action, 'type'))
     }
     case 'CHANNEL_DISCONNECTED': {
@@ -49,11 +52,24 @@ const elements = {
     render ($el, state) {
       if (state.channelDisconnected) $el.show()
     }
+  },
+  '[data-test="filter_dropdown"]': {
+    render ($el, state) {
+      if (state.emptyResponse && !state.isSearch) {
+        return $el.hide()
+      }
+
+      return $el.show()
+    }
   }
 }
 
 if ($('[data-page="address-transactions"]').length) {
   const store = createAsyncLoadStore(reducer, initialState, 'dataset.identifierHash')
+
+  // console.log("-=-=-=-==-=-  =-=-=-=--=-==-=-=")
+  // console.log(initialState)
+
   const addressHash = $('[data-page="address-details"]')[0].dataset.pageAddressHash
   const { filter, blockNumber } = humps.camelizeKeys(URI(window.location).query(true))
 
