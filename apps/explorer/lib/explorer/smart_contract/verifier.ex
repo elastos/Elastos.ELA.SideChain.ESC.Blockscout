@@ -216,107 +216,48 @@ defmodule Explorer.SmartContract.Verifier do
           <<_::binary-size(4)>> <> _constructor_arguments ->
         do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
 
+      #% Solidity >= 0.5.0; xxl 20201219 fix the solidity verifier bug
+      "a265627a7a72305820" <> <<_::binary-size(64)>> <> "6c65" <> _constructor_arguments ->
+        extracted
+        |> Enum.reverse()
+        |> :binary.list_to_bin()
+
       # Solidity >= 0.5.9; https://github.com/ethereum/solidity/blob/aa4ee3a1559ebc0354926af962efb3fcc7dc15bd/docs/metadata.rst
-      <<_::binary-size(2)>> <>
-          @metadata_hash_prefix_0_5_family_1 <>
-          <<_::binary-size(1)>> <>
-          @metadata_hash_prefix_0_5_family_2 <>
-          <<metadata_hash::binary-size(64)>> <>
-          @metadata_hash_common_suffix <>
-          "43" <> <<compiler_version::binary-size(6)>> <> "0032" <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
 
-      <<_::binary-size(2)>> <>
-          @metadata_hash_prefix_0_5_family_1 <>
-          <<_::binary-size(1)>> <>
-          @metadata_hash_prefix_0_5_family_2 <>
-          <<metadata_hash::binary-size(64)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(76)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
+      "a265627a7a72305820" <>
+          <<_::binary-size(64)>> <> "64736f6c6343" <> <<_::binary-size(6)>> <> "0032" <> _constructor_arguments ->
+        extracted
+        |> Enum.reverse()
+        |> :binary.list_to_bin()
 
-      <<_::binary-size(2)>> <>
-          @metadata_hash_prefix_0_5_family_1 <>
-          <<_::binary-size(1)>> <>
-          @metadata_hash_prefix_0_5_family_2 <>
-          <<metadata_hash::binary-size(64)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(78)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
+      #% Solidity >= 0.5.9; xxl 20201130 fix the solidity verifier bug
+      "a365627a7a72305820" <>
+          <<_::binary-size(64)>> <> "6c6578706572" <> _constructor_arguments ->
+        extracted
+        |> Enum.reverse()
+        |> :binary.list_to_bin()  
 
-      <<_::binary-size(2)>> <>
-          @metadata_hash_prefix_0_5_family_1 <>
-          <<_::binary-size(1)>> <>
-          @metadata_hash_prefix_0_5_family_2 <>
-          <<metadata_hash::binary-size(64)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(80)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
+      #% Solidity >= 0.5.11; xxl 20201207 fix the solidity verifier bug
+      "a365627a7a72315820" <>
+        <<_::binary-size(64)>> <> "6c6578706572" <> _constructor_arguments ->
+      extracted
+      |> Enum.reverse()
+      |> :binary.list_to_bin()
 
-      <<_::binary-size(2)>> <>
-          @metadata_hash_prefix_0_5_family_1 <>
-          <<_::binary-size(1)>> <>
-          @metadata_hash_prefix_0_5_family_2 <>
-          <<metadata_hash::binary-size(64)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(82)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
+      # Solidity >= 0.5.11 https://github.com/ethereum/solidity/blob/develop/Changelog.md#0511-2019-08-12
+      # Metadata: Update the swarm hash to the current specification, changes bzzr0 to bzzr1 and urls to use bzz-raw://
+      "a265627a7a72315820" <>
+          <<_::binary-size(64)>> <> "64736f6c6343" <> <<_::binary-size(6)>> <> "0032" <> _constructor_arguments ->
+        extracted
+        |> Enum.reverse()
+        |> :binary.list_to_bin()
 
-      # Solidity >= 0.6.0 https://github.com/ethereum/solidity/blob/develop/Changelog.md#060-2019-12-17
-      # https://github.com/ethereum/solidity/blob/26b700771e9cc9c956f0503a05de69a1be427963/docs/metadata.rst#encoding-of-the-metadata-hash-in-the-bytecode
-      # IPFS is used instead of Swarm
-      # The current version of the Solidity compiler usually adds the following to the end of the deployed bytecode:
-      # 0xa2
-      # 0x64 'i' 'p' 'f' 's' 0x58 0x22 <34 bytes IPFS hash>
-      # 0x64 's' 'o' 'l' 'c' 0x43 <3 byte version encoding>
-      # 0x00 0x32
-      # Note: there is a bug in the docs. Instead of 0x32, 0x33 should be used.
-      # Fixing PR has been created https://github.com/ethereum/solidity/pull/8174
-      @metadata_hash_prefix_0_6_0 <>
-          <<metadata_hash::binary-size(68)>> <>
-          @metadata_hash_common_suffix <>
-          "43" <> <<compiler_version::binary-size(6)>> <> "0033" <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
-
-      @metadata_hash_prefix_0_6_0 <>
-          <<metadata_hash::binary-size(68)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(76)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
-
-      @metadata_hash_prefix_0_6_0 <>
-          <<metadata_hash::binary-size(68)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(78)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
-
-      @metadata_hash_prefix_0_6_0 <>
-          <<metadata_hash::binary-size(68)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(80)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
-
-      @metadata_hash_prefix_0_6_0 <>
-          <<metadata_hash::binary-size(68)>> <>
-          @metadata_hash_common_suffix <>
-          "78" <>
-          <<_::binary-size(2)>> <>
-          <<compiler_version::binary-size(82)>> <> "00" <> <<_::binary-size(2)>> <> _constructor_arguments ->
-        do_extract_bytecode_and_metadata_hash_output(metadata_hash, extracted, compiler_version)
+      #% Solidity >= 0.6.0; xxl 20201208 fix the solidity verifier bug
+      "646970667358221220" <>
+        <<_::binary-size(64)>> <> "64736f6c6343" <> _constructor_arguments ->
+      extracted
+      |> Enum.reverse()
+      |> :binary.list_to_bin()
 
       <<next::binary-size(2)>> <> rest ->
         do_extract_bytecode_and_metadata_hash([next | extracted], rest, metadata_hash, compiler_version)
