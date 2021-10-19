@@ -10,6 +10,10 @@ defmodule Explorer.Chain.Import.Runner.Tokens do
   alias Ecto.{Multi, Repo}
   alias Explorer.Chain.{Hash, Import, Token}
 
+  #xxl 10 MetadataRetriever 20201124
+  alias Explorer.Token.MetadataRetriever
+  alias Explorer.Repo
+
   @behaviour Import.Runner
 
   # milliseconds
@@ -94,6 +98,18 @@ defmodule Explorer.Chain.Import.Runner.Tokens do
 
   @impl Import.Runner
   def run(multi, changes_list, %{timestamps: timestamps} = options) do
+
+    #%xxl 20201224 fix the update total supply
+    hashes = Enum.map(changes_list, & &1.contract_address_hash)
+    {:ok, params} =
+      hashes
+      |> MetadataRetriever.get_functions_of()
+    
+    Enum.map(params, fn param ->
+      update_total_supply(param.contract_address_hash,param.total_supply);
+    end)
+    #%
+
     insert_options =
       options
       |> Map.get(option_key(), %{})
@@ -135,6 +151,23 @@ defmodule Explorer.Chain.Import.Runner.Tokens do
         timeout: timeout,
         timestamps: timestamps
       )
+  end
+
+  #%xxl 20201224 fix the update total supply
+  def update_total_supply(contract_address_hash,total_supply) do
+
+    try do
+      {_, _} = Repo.update_all(
+          from(token in Token,
+            where: token.contract_address_hash == ^contract_address_hash
+          ),
+          set: [total_supply: total_supply]
+        )
+      rescue
+    postgrex_error in Postgrex.Error ->
+      {:error, %{exception: postgrex_error}}
+    end
+
   end
 
   def default_on_conflict do
