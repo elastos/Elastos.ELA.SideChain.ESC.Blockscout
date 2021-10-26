@@ -5,6 +5,7 @@ BS_CONTAINER_NAME = blockscout
 PG_CONTAINER_NAME = postgres
 PG_CONTAINER_IMAGE = postgres:12.5
 THIS_FILE = $(lastword $(MAKEFILE_LIST))
+COIN = ELA
 
 ifeq ($(SYSTEM), Linux)
 	HOST=localhost
