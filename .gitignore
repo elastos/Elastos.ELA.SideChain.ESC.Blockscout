@@ -1,3 +1,4 @@
+Makefile
 # App artifacts
 /_build
 /apps/*/cover
@@ -37,7 +38,7 @@ screenshots/
 # Sobelow
 .sobelow
 
-# osx 
+# osx
 .DS_Store
 
 # mix phx.gen.cert self-signed certs for dev
