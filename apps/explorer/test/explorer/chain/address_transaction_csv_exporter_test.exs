@@ -3,7 +3,7 @@ defmodule Explorer.Chain.AddressTransactionCsvExporterTest do
 
   alias Explorer.Chain.{AddressTransactionCsvExporter, Wei}
 
-  describe "export/1" do
+  describe "export/3" do
     test "exports address transactions to csv" do
       address = insert(:address)
 
@@ -13,9 +13,12 @@ defmodule Explorer.Chain.AddressTransactionCsvExporterTest do
         |> with_block()
         |> Repo.preload(:token_transfers)
 
+      from_period = Timex.format!(Timex.shift(Timex.now(), minutes: -1), "%Y-%m-%d", :strftime)
+      to_period = Timex.format!(Timex.now(), "%Y-%m-%d", :strftime)
+
       [result] =
         address
-        |> AddressTransactionCsvExporter.export()
+        |> AddressTransactionCsvExporter.export(from_period, to_period)
         |> Enum.to_list()
         |> Enum.drop(1)
         |> Enum.map(fn [
@@ -93,9 +96,12 @@ defmodule Explorer.Chain.AddressTransactionCsvExporterTest do
       end)
       |> Enum.count()
 
+      from_period = Timex.format!(Timex.shift(Timex.now(), minutes: -1), "%Y-%m-%d", :strftime)
+      to_period = Timex.format!(Timex.now(), "%Y-%m-%d", :strftime)
+
       result =
         address
-        |> AddressTransactionCsvExporter.export()
+        |> AddressTransactionCsvExporter.export(from_period, to_period)
         |> Enum.to_list()
         |> Enum.drop(1)
 

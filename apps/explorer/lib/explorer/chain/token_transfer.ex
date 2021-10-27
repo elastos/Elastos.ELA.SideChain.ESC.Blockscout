@@ -27,7 +27,7 @@ defmodule Explorer.Chain.TokenTransfer do
   import Ecto.Changeset
   import Ecto.Query, only: [from: 2, limit: 2, where: 3]
 
-  alias Explorer.Chain.{Address, Hash, TokenTransfer, Transaction}
+  alias Explorer.Chain.{Address, Block, Hash, TokenTransfer, Transaction}
   alias Explorer.Chain.Token.Instance
   alias Explorer.{PagingOptions, Repo}
 
@@ -35,6 +35,7 @@ defmodule Explorer.Chain.TokenTransfer do
 
   @typedoc """
   * `:amount` - The token transferred amount
+  * `:block_hash` - hash of the block
   * `:block_number` - The block number that the transfer took place.
   * `:from_address` - The `t:Explorer.Chain.Address.t/0` that sent the tokens
   * `:from_address_hash` - Address hash foreign key
@@ -46,10 +47,13 @@ defmodule Explorer.Chain.TokenTransfer do
   * `:transaction` - The `t:Explorer.Chain.Transaction.t/0` ledger
   * `:transaction_hash` - Transaction foreign key
   * `:log_index` - Index of the corresponding `t:Explorer.Chain.Log.t/0` in the transaction.
+  * `:amounts` - Tokens transferred amounts in case of batched transfer in ERC-1155
+  * `:token_ids` - IDs of the tokens (applicable to ERC-1155 tokens)
   """
   @type t :: %TokenTransfer{
-          amount: Decimal.t(),
+          amount: Decimal.t() | nil,
           block_number: non_neg_integer() | nil,
+          block_hash: Hash.Full.t(),
           from_address: %Ecto.Association.NotLoaded{} | Address.t(),
           from_address_hash: Hash.Address.t(),
           to_address: %Ecto.Association.NotLoaded{} | Address.t(),
@@ -59,12 +63,16 @@ defmodule Explorer.Chain.TokenTransfer do
           token_id: non_neg_integer() | nil,
           transaction: %Ecto.Association.NotLoaded{} | Transaction.t(),
           transaction_hash: Hash.Full.t(),
-          log_index: non_neg_integer()
+          log_index: non_neg_integer(),
+          amounts: [Decimal.t()] | nil,
+          token_ids: [non_neg_integer()] | nil
         }
 
   @typep paging_options :: {:paging_options, PagingOptions.t()}
 
   @constant "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+  @erc1155_single_transfer_signature "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62"
+  @erc1155_batch_transfer_signature "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb"
 
   @transfer_function_signature "0xa9059cbb"
 
@@ -74,6 +82,8 @@ defmodule Explorer.Chain.TokenTransfer do
     field(:block_number, :integer)
     field(:log_index, :integer, primary_key: true)
     field(:token_id, :decimal)
+    field(:amounts, {:array, :decimal})
+    field(:token_ids, {:array, :decimal})
 
     belongs_to(:from_address, Address, foreign_key: :from_address_hash, references: :hash, type: Hash.Address)
     belongs_to(:to_address, Address, foreign_key: :to_address_hash, references: :hash, type: Hash.Address)
@@ -93,6 +103,13 @@ defmodule Explorer.Chain.TokenTransfer do
       type: Hash.Full
     )
 
+    belongs_to(:block, Block,
+      foreign_key: :block_hash,
+      primary_key: true,
+      references: :hash,
+      type: Hash.Full
+    )
+
     has_one(
       :instance,
       Instance,
@@ -105,8 +122,8 @@ defmodule Explorer.Chain.TokenTransfer do
     timestamps()
   end
 
-  @required_attrs ~w(block_number log_index from_address_hash to_address_hash token_contract_address_hash transaction_hash)a
-  @optional_attrs ~w(amount token_id)a
+  @required_attrs ~w(block_number log_index from_address_hash to_address_hash token_contract_address_hash transaction_hash block_hash)a
+  @optional_attrs ~w(amount token_id amounts token_ids)a
 
   @doc false
   def changeset(%TokenTransfer{} = struct, params \\ %{}) do
@@ -125,6 +142,10 @@ defmodule Explorer.Chain.TokenTransfer do
   """
   def constant, do: @constant
 
+  def erc1155_single_transfer_signature, do: @erc1155_single_transfer_signature
+
+  def erc1155_batch_transfer_signature, do: @erc1155_batch_transfer_signature
+
   @doc """
   ERC 20's transfer(address,uint256) function signature
   """
@@ -139,7 +160,7 @@ defmodule Explorer.Chain.TokenTransfer do
         tt in TokenTransfer,
         where: tt.token_contract_address_hash == ^token_address_hash and not is_nil(tt.block_number),
         preload: [{:transaction, :block}, :token, :from_address, :to_address],
-        order_by: [desc: tt.block_number, desc: tt.log_index]
+        order_by: [desc: tt.block_number]
       )
 
     query
@@ -159,7 +180,7 @@ defmodule Explorer.Chain.TokenTransfer do
         where: tt.token_id == ^token_id,
         where: not is_nil(tt.block_number),
         preload: [{:transaction, :block}, :token, :from_address, :to_address],
-        order_by: [desc: tt.block_number, desc: tt.log_index]
+        order_by: [desc: tt.block_number]
       )
 
     query
@@ -177,7 +198,7 @@ defmodule Explorer.Chain.TokenTransfer do
         select: fragment("COUNT(*)")
       )
 
-    Repo.one(query)
+    Repo.one(query, timeout: :infinity)
   end
 
   @spec count_token_transfers_from_token_hash_and_token_id(Hash.t(), binary()) :: non_neg_integer()
@@ -189,13 +210,13 @@ defmodule Explorer.Chain.TokenTransfer do
         select: fragment("COUNT(*)")
       )
 
-    Repo.one(query)
+    Repo.one(query, timeout: :infinity)
   end
 
   def page_token_transfer(query, %PagingOptions{key: nil}), do: query
 
   def page_token_transfer(query, %PagingOptions{key: {token_id}}) do
-    where(query, [token_transfer], token_transfer.token_id > ^token_id)
+    where(query, [tt], tt.token_id < ^token_id)
   end
 
   def page_token_transfer(query, %PagingOptions{key: {block_number, log_index}}) do
@@ -271,6 +292,7 @@ defmodule Explorer.Chain.TokenTransfer do
   end
 
   @doc """
+  Innventory tab query.
   A token ERC-721 is considered unique because it corresponds to the possession
   of a specific asset.
 
@@ -284,8 +306,9 @@ defmodule Explorer.Chain.TokenTransfer do
       left_join: instance in Instance,
       on: tt.token_contract_address_hash == instance.token_contract_address_hash and tt.token_id == instance.token_id,
       where: tt.token_contract_address_hash == ^contract_address_hash,
+      where: tt.to_address_hash != ^"0x0000000000000000000000000000000000000000",
       order_by: [desc: tt.block_number],
-      distinct: tt.token_id,
+      distinct: [desc: tt.token_id],
       preload: [:to_address],
       select: %{tt | instance: instance}
     )

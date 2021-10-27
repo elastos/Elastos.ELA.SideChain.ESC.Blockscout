@@ -1,27 +1,26 @@
 defmodule BlockScoutWeb.LayoutView do
   use BlockScoutWeb, :view
 
+  alias Explorer.{Chain, CustomContractsHelpers}
   alias Plug.Conn
   alias Poison.Parser
 
-  @issue_url "https://github.com/elastos/Elastos.ELA.SideChain.ETH.Blockscout/issues/new/choose"
+  import BlockScoutWeb.AddressView, only: [from_address_hash: 1]
+
+  @issue_url "https://github.com/blockscout/blockscout/issues/new"
   @default_other_networks [
     %{
       title: "Mainnet",
-      url: "https://eth.elastos.io",
+      url: "https://esc.elastos.io/",
     },
     %{
       title: "Testnet",
-      url: "https://eth-testnet.elastos.io",
+      url: "https://esc-testnet.elastos.io/",
       test_net?: true
-    },
+    }
   ]
 
   alias BlockScoutWeb.SocialMedia
-
-  def network_icon_partial do
-    Keyword.get(application_config(), :network_icon) || "_network_icon.html"
-  end
 
   def logo do
     Keyword.get(application_config(), :logo) || "/images/blockscout_logo.svg"
@@ -32,12 +31,16 @@ defmodule BlockScoutWeb.LayoutView do
       "/images/blockscout_logo.svg"
   end
 
+  def logo_text do
+    Keyword.get(application_config(), :logo_text) || nil
+  end
+
   def subnetwork_title do
-    Keyword.get(application_config(), :subnetwork) || "Sokol Testnet"
+    Keyword.get(application_config(), :subnetwork) || "Elastos Smart Contract MainNet"
   end
 
   def network_title do
-    Keyword.get(application_config(), :network) || "POA"
+    Keyword.get(application_config(), :network) || "Elastos Smart Contract MainNet"
   end
 
   defp application_config do
@@ -103,7 +106,7 @@ defmodule BlockScoutWeb.LayoutView do
           nil
 
         release_link_env_var == "" || release_link_env_var == nil ->
-          "https://github.com/elastos/Elastos.ELA.SideChain.ETH.Blockscout/tree/" <> version
+          "https://github.com/elastos/Elastos.ELA.SideChain.ESC.Blockscout/tags" <> version
 
         true ->
           release_link_env_var
@@ -122,9 +125,14 @@ defmodule BlockScoutWeb.LayoutView do
   def other_networks do
     get_other_networks =
       if Application.get_env(:block_scout_web, :other_networks) do
-        :block_scout_web
-        |> Application.get_env(:other_networks)
-        |> Parser.parse!(%{keys: :atoms!})
+        try do
+          :block_scout_web
+          |> Application.get_env(:other_networks)
+          |> Parser.parse!(%{keys: :atoms!})
+        rescue
+          _ ->
+            []
+        end
       else
         @default_other_networks
       end
@@ -175,10 +183,16 @@ defmodule BlockScoutWeb.LayoutView do
 
   def other_explorers do
     if Application.get_env(:block_scout_web, :link_to_other_explorers) do
-      Application.get_env(:block_scout_web, :other_explorers, [])
+      decode_other_explorers_json(Application.get_env(:block_scout_web, :other_explorers, []))
     else
       []
     end
+  end
+
+  defp decode_other_explorers_json(data) do
+    Jason.decode!(~s(#{data}))
+  rescue
+    _ -> []
   end
 
   def webapp_url(conn) do
@@ -198,6 +212,21 @@ defmodule BlockScoutWeb.LayoutView do
     |> case do
       :error -> ""
       {:ok, url} -> url
+    end
+  end
+
+  def external_apps_list do
+    if Application.get_env(:block_scout_web, :external_apps) do
+      try do
+        :block_scout_web
+        |> Application.get_env(:external_apps)
+        |> Parser.parse!(%{keys: :atoms!})
+      rescue
+        _ ->
+          []
+      end
+    else
+      []
     end
   end
 

@@ -2,7 +2,8 @@ defmodule BlockScoutWeb.AddressContractView do
   use BlockScoutWeb, :view
 
   alias ABI.{FunctionSelector, TypeDecoder}
-  alias Explorer.Chain.{Address, Data, InternalTransaction, SmartContract}
+  alias Explorer.Chain
+  alias Explorer.Chain.{Address, Data, InternalTransaction, Transaction}
 
   def render("scripts.html", %{conn: conn}) do
     render_scripts(conn, "address_contract/code_highlighting.js")
@@ -22,7 +23,7 @@ defmodule BlockScoutWeb.AddressContractView do
   def format_optimization_text(true), do: gettext("true")
   def format_optimization_text(false), do: gettext("false")
 
-  def format_constructor_arguments(contract) do
+  def format_constructor_arguments(contract, conn) do
     constructor_abi = Enum.find(contract.abi, fn el -> el["type"] == "constructor" && el["inputs"] != [] end)
 
     input_types = Enum.map(constructor_abi["inputs"], &FunctionSelector.parse_specification_type/1)
@@ -33,10 +34,19 @@ defmodule BlockScoutWeb.AddressContractView do
       |> Enum.zip(constructor_abi["inputs"])
       |> Enum.reduce({0, "#{contract.constructor_arguments}\n\n"}, fn {val, %{"type" => type}}, {count, acc} ->
         formatted_val =
-          if is_binary(val) do
-            Base.encode16(val, case: :lower)
-          else
-            val
+          cond do
+            type =~ "address" ->
+              address_hash = "0x" <> Base.encode16(val, case: :lower)
+
+              address = get_address(address_hash)
+
+              get_formatted_address_data(address, address_hash, conn)
+
+            type =~ "bytes" ->
+              Base.encode16(val, case: :lower)
+
+            true ->
+              val
           end
 
         {count + 1, "#{acc}Arg [#{count}] (<b>#{type}</b>) : #{formatted_val}\n"}
@@ -45,6 +55,21 @@ defmodule BlockScoutWeb.AddressContractView do
     result
   rescue
     _ -> contract.constructor_arguments
+  end
+
+  defp get_address(address_hash) do
+    case Chain.string_to_address_hash(address_hash) do
+      {:ok, address} -> address
+      _ -> nil
+    end
+  end
+
+  defp get_formatted_address_data(address, address_hash, conn) do
+    if address != nil do
+      "<a href=" <> address_path(conn, :show, address) <> ">" <> address_hash <> "</a>"
+    else
+      address_hash
+    end
   end
 
   defp decode_data("0x" <> encoded_data, types) do
@@ -57,17 +82,17 @@ defmodule BlockScoutWeb.AddressContractView do
     |> TypeDecoder.decode_raw(types)
   end
 
-  def format_external_libraries(libraries) do
+  def format_external_libraries(libraries, conn) do
     Enum.reduce(libraries, "", fn %{name: name, address_hash: address_hash}, acc ->
-      "#{acc}<span class=\"hljs-title\">#{name}</span> : #{address_hash}  \n"
+      address = get_address(address_hash)
+      "#{acc}<span class=\"hljs-title\">#{name}</span> : #{get_formatted_address_data(address, address_hash, conn)}  \n"
     end)
   end
 
-  def contract_lines_with_index(source_code, inserted_at \\ nil) do
+  def contract_lines_with_index(source_code) do
     contract_lines =
       source_code
       |> String.split("\n")
-      |> SmartContract.add_submitted_comment(inserted_at)
 
     max_digits =
       contract_lines
@@ -91,5 +116,25 @@ defmodule BlockScoutWeb.AddressContractView do
 
   def contract_creation_code(%Address{contract_code: contract_code}) do
     {:ok, contract_code}
+  end
+
+  def creation_code(%Address{contracts_creation_internal_transaction: %InternalTransaction{}} = address) do
+    address.contracts_creation_internal_transaction.input
+  end
+
+  def creation_code(%Address{contracts_creation_transaction: %Transaction{}} = address) do
+    address.contracts_creation_transaction.input
+  end
+
+  def creation_code(%Address{contracts_creation_transaction: nil}) do
+    nil
+  end
+
+  def sourcify_repo_url(address_hash, partial_match) do
+    checksummed_hash = Address.checksum(address_hash)
+    chain_id = Application.get_env(:explorer, Explorer.ThirdPartyIntegrations.Sourcify)[:chain_id]
+    repo_url = Application.get_env(:explorer, Explorer.ThirdPartyIntegrations.Sourcify)[:repo_url]
+    match = if partial_match, do: "/partial_match/", else: "/full_match/"
+    repo_url <> match <> chain_id <> "/" <> checksummed_hash <> "/"
   end
 end

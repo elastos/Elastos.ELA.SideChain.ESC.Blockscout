@@ -9,7 +9,12 @@ defmodule Explorer.Chain.LogTest do
 
   describe "changeset/2" do
     test "accepts valid attributes" do
-      params = params_for(:log, address_hash: build(:address).hash, transaction_hash: build(:transaction).hash)
+      params =
+        params_for(:log,
+          address_hash: build(:address).hash,
+          transaction_hash: build(:transaction).hash,
+          block_hash: build(:block).hash
+        )
 
       assert %Changeset{valid?: true} = Log.changeset(%Log{}, params)
     end
@@ -26,7 +31,8 @@ defmodule Explorer.Chain.LogTest do
           :log,
           address_hash: build(:address).hash,
           first_topic: "ham",
-          transaction_hash: build(:transaction).hash
+          transaction_hash: build(:transaction).hash,
+          block_hash: build(:block).hash
         )
 
       assert %Changeset{changes: %{first_topic: "ham"}, valid?: true} = Log.changeset(%Log{}, params)
@@ -52,28 +58,30 @@ defmodule Explorer.Chain.LogTest do
     end
 
     test "that a contract call transaction that has a verified contract returns the decoded input data" do
-      smart_contract =
-        insert(:smart_contract,
-          abi: [
-            %{
-              "anonymous" => false,
-              "inputs" => [
-                %{"indexed" => true, "name" => "_from_human", "type" => "string"},
-                %{"indexed" => false, "name" => "_number", "type" => "uint256"},
-                %{"indexed" => true, "name" => "_belly", "type" => "bool"}
-              ],
-              "name" => "WantsPets",
-              "type" => "event"
-            }
-          ]
-        )
+      to_address = insert(:address, contract_code: "0x")
 
-      topic1 = "0x" <> Base.encode16(:keccakf1600.hash(:sha3_256, "WantsPets(string,uint256,bool)"), case: :lower)
-      topic2 = "0x" <> Base.encode16(:keccakf1600.hash(:sha3_256, "bob"), case: :lower)
+      insert(:smart_contract,
+        abi: [
+          %{
+            "anonymous" => false,
+            "inputs" => [
+              %{"indexed" => true, "name" => "_from_human", "type" => "string"},
+              %{"indexed" => false, "name" => "_number", "type" => "uint256"},
+              %{"indexed" => true, "name" => "_belly", "type" => "bool"}
+            ],
+            "name" => "WantsPets",
+            "type" => "event"
+          }
+        ],
+        address_hash: to_address.hash
+      )
+
+      topic1_bytes = ExKeccak.hash_256("WantsPets(string,uint256,bool)")
+      topic1 = "0x" <> Base.encode16(topic1_bytes, case: :lower)
+      topic2_bytes = ExKeccak.hash_256("bob")
+      topic2 = "0x" <> Base.encode16(topic2_bytes, case: :lower)
       topic3 = "0x0000000000000000000000000000000000000000000000000000000000000001"
       data = "0x0000000000000000000000000000000000000000000000000000000000000000"
-
-      to_address = insert(:address, smart_contract: smart_contract)
 
       transaction =
         :transaction_to_verified_contract
@@ -82,6 +90,7 @@ defmodule Explorer.Chain.LogTest do
 
       log =
         insert(:log,
+          address: to_address,
           transaction: transaction,
           first_topic: topic1,
           second_topic: topic2,
@@ -124,8 +133,10 @@ defmodule Explorer.Chain.LogTest do
       |> SmartContract.changeset(params)
       |> Repo.insert!()
 
-      topic1 = "0x" <> Base.encode16(:keccakf1600.hash(:sha3_256, "WantsPets(string,uint256,bool)"), case: :lower)
-      topic2 = "0x" <> Base.encode16(:keccakf1600.hash(:sha3_256, "bob"), case: :lower)
+      topic1_bytes = ExKeccak.hash_256("WantsPets(string,uint256,bool)")
+      topic1 = "0x" <> Base.encode16(topic1_bytes, case: :lower)
+      topic2_bytes = ExKeccak.hash_256("bob")
+      topic2 = "0x" <> Base.encode16(topic2_bytes, case: :lower)
       topic3 = "0x0000000000000000000000000000000000000000000000000000000000000001"
       data = "0x0000000000000000000000000000000000000000000000000000000000000000"
 

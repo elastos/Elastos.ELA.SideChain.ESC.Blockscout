@@ -32,7 +32,7 @@ defmodule BlockScoutWeb.ChainControllerTest do
       conn =
         build_conn()
         |> put_req_header("x-requested-with", "xmlhttprequest")
-        |> get("/chain_blocks")
+        |> get("/chain-blocks")
 
       response = json_response(conn, 200)
 
@@ -46,7 +46,7 @@ defmodule BlockScoutWeb.ChainControllerTest do
       conn =
         build_conn()
         |> put_req_header("x-requested-with", "xmlhttprequest")
-        |> get("/chain_blocks")
+        |> get("/chain-blocks")
 
       response = json_response(conn, 200)
 
@@ -62,7 +62,7 @@ defmodule BlockScoutWeb.ChainControllerTest do
       conn =
         build_conn()
         |> put_req_header("x-requested-with", "xmlhttprequest")
-        |> get("/chain_blocks")
+        |> get("/chain-blocks")
 
       response = List.first(json_response(conn, 200)["blocks"])
 
@@ -75,7 +75,9 @@ defmodule BlockScoutWeb.ChainControllerTest do
       insert(:token, name: "MaGiC")
       insert(:token, name: "Evil")
 
-      conn = get(conn(), "/token_autocomplete?q=magic")
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=magic")
 
       assert Enum.count(json_response(conn, 200)) == 1
     end
@@ -84,9 +86,79 @@ defmodule BlockScoutWeb.ChainControllerTest do
       insert(:token, name: "MaGiC")
       insert(:token, name: "magic")
 
-      conn = get(conn(), "/token_autocomplete?q=magic")
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=magic")
 
       assert Enum.count(json_response(conn, 200)) == 2
+    end
+
+    test "finds verified contract" do
+      insert(:smart_contract, name: "SuperToken")
+
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=sup")
+
+      assert Enum.count(json_response(conn, 200)) == 1
+    end
+
+    test "finds verified contract and token" do
+      insert(:smart_contract, name: "MagicContract")
+      insert(:token, name: "magicToken")
+
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=mag")
+
+      assert Enum.count(json_response(conn, 200)) == 2
+    end
+
+    test "finds verified contracts and tokens" do
+      insert(:smart_contract, name: "something")
+      insert(:smart_contract, name: "MagicContract")
+      insert(:token, name: "Magic3")
+      insert(:smart_contract, name: "magicContract2")
+      insert(:token, name: "magicToken")
+      insert(:token, name: "OneMoreToken")
+
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=mag")
+
+      assert Enum.count(json_response(conn, 200)) == 4
+    end
+
+    test "find by several words" do
+      insert(:token, name: "first Token")
+      insert(:token, name: "second Token")
+
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=fir+tok")
+
+      assert Enum.count(json_response(conn, 200)) == 1
+    end
+
+    test "find by empty query" do
+      insert(:token, name: "MaGiCt0k3n")
+      insert(:smart_contract, name: "MagicContract")
+
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=")
+
+      assert Enum.count(json_response(conn, 200)) == 0
+    end
+
+    test "find by non-latin characters" do
+      insert(:token, name: "someToken")
+
+      conn =
+        build_conn()
+        |> get("/token-autocomplete?q=%E0%B8%B5%E0%B8%AB")
+
+      assert Enum.count(json_response(conn, 200)) == 0
     end
   end
 
@@ -98,12 +170,12 @@ defmodule BlockScoutWeb.ChainControllerTest do
       assert redirected_to(conn) == block_path(conn, :show, "37")
     end
 
-    test "does not find non-consensus block by number", %{conn: conn} do
+    test "redirects to search results page even for  searching non-consensus block by number", %{conn: conn} do
       %Block{number: number} = insert(:block, consensus: false)
 
       conn = get(conn, "/search?q=#{number}")
 
-      assert conn.status == 404
+      assert conn.status == 302
     end
 
     test "finds non-consensus block by hash", %{conn: conn} do
@@ -161,9 +233,9 @@ defmodule BlockScoutWeb.ChainControllerTest do
       assert redirected_to(conn) == address_path(conn, :show, address)
     end
 
-    test "redirects to 404 when it finds nothing", %{conn: conn} do
+    test "redirects to result page when it finds nothing", %{conn: conn} do
       conn = get(conn, "search?q=zaphod")
-      assert conn.status == 404
+      assert conn.status == 302
     end
   end
 end

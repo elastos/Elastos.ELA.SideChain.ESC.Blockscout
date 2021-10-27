@@ -13,12 +13,20 @@
             <span class="loading-spinner-block-2"></span>
           </div>
         <% end %>
-        <%= formatted_status(status) %>
+        <%= formatted_result(status) %>
       </span>
     </div>
     <!-- Content -->
     <div class="col-md-7 col-lg-8 d-flex flex-column pr-2 pr-sm-2 pr-md-0">
-      <%= render "_link.html", transaction_hash: @transaction.hash %>
+      <span>
+      <div class="text-truncate d-flex">
+        <%= render "_link.html", transaction_hash: @transaction.hash, data_test: "address_hash_link" %>
+        <% method_name = Transaction.get_method_name(@transaction) %>
+        <%= if method_name do %>
+          <%= render BlockScoutWeb.FormView, "_tag.html", text: method_name, additional_classes: ["method", "ml-1"] %>
+        <% end %>
+      </div>
+      </span>
       <span>
         <%= @transaction |> BlockScoutWeb.AddressView.address_partial_selector(:from, assigns[:current_address]) |> BlockScoutWeb.RenderHelpers.render_partial() %>
         &rarr;
@@ -42,7 +50,7 @@
 
           <div class="collapse token-transfer-toggle" id="transaction-<%= @transaction.hash %>">
             <%= for token_transfer <- remaining_token_transfers do %>
-              <%= render "_token_transfer.html", address: assigns[:current_address], token_transfer: token_transfer %>
+              <%= render "_token_transfer.html", address: assigns[:current_address], token_transfer: token_transfer, burn_address_hash: @burn_address_hash %>
             <% end %>
           </div>
         </div>

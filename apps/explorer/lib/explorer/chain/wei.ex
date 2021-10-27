@@ -22,9 +22,14 @@ defmodule Explorer.Chain.Wei do
 
   alias Explorer.Chain.Wei
 
+  @derive {Jason.Encoder,
+           except: [
+             :__meta__
+           ]}
+
   defstruct ~w(value)a
 
-  @behaviour Ecto.Type
+  use Ecto.Type
 
   @impl Ecto.Type
   def type, do: :decimal
@@ -172,6 +177,12 @@ defmodule Explorer.Chain.Wei do
       %Explorer.Chain.Wei{value: Decimal.new(50)}
   """
   def mult(%Wei{value: value}, multiplier) when is_integer(multiplier) do
+    value
+    |> Decimal.mult(multiplier)
+    |> from(:wei)
+  end
+
+  def mult(%Wei{value: value}, %Decimal{} = multiplier) do
     value
     |> Decimal.mult(multiplier)
     |> from(:wei)

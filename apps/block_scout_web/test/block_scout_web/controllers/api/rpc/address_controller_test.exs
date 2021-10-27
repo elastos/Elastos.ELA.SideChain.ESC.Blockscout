@@ -88,21 +88,24 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       mining_address =
         insert(:address,
           fetched_coin_balance: 0,
-          fetched_coin_balance_block_number: 2,
+          fetched_coin_balance_block_number: 102,
           inserted_at: Timex.shift(now, minutes: -10)
         )
 
       mining_address_hash = to_string(mining_address.hash)
       # we space these very far apart so that we know it will consider the 0th block stale (it calculates how far
       # back we'd need to go to get 24 hours in the past)
-      insert(:block, number: 0, timestamp: Timex.shift(now, hours: -50), miner: mining_address)
-      insert(:block, number: 1, timestamp: Timex.shift(now, hours: -25), miner: mining_address)
+      Enum.each(0..100, fn i ->
+        insert(:block, number: i, timestamp: Timex.shift(now, hours: -(102 - i) * 25), miner: mining_address)
+      end)
+
+      insert(:block, number: 101, timestamp: Timex.shift(now, hours: -25), miner: mining_address)
       AverageBlockTime.refresh()
 
       address =
         insert(:address,
           fetched_coin_balance: 100,
-          fetched_coin_balance_block_number: 0,
+          fetched_coin_balance_block_number: 100,
           inserted_at: Timex.shift(now, minutes: -5)
         )
 
@@ -112,11 +115,46 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
                                                      %{
                                                        id: id,
                                                        method: "eth_getBalance",
-                                                       params: [^address_hash, "0x1"]
+                                                       params: [^mining_address_hash, "0x65"]
                                                      }
                                                    ],
                                                    _options ->
         {:ok, [%{id: id, jsonrpc: "2.0", result: "0x02"}]}
+      end)
+
+      res = eth_block_number_fake_response("0x65")
+
+      expect(EthereumJSONRPC.Mox, :json_rpc, 1, fn [
+                                                     %{
+                                                       id: 0,
+                                                       method: "eth_getBlockByNumber",
+                                                       params: ["0x65", true]
+                                                     }
+                                                   ],
+                                                   _ ->
+        {:ok, [res]}
+      end)
+
+      expect(EthereumJSONRPC.Mox, :json_rpc, 1, fn [
+                                                     %{
+                                                       id: id,
+                                                       method: "eth_getBalance",
+                                                       params: [^address_hash, "0x65"]
+                                                     }
+                                                   ],
+                                                   _options ->
+        {:ok, [%{id: id, jsonrpc: "2.0", result: "0x02"}]}
+      end)
+
+      expect(EthereumJSONRPC.Mox, :json_rpc, 1, fn [
+                                                     %{
+                                                       id: 0,
+                                                       method: "eth_getBlockByNumber",
+                                                       params: ["0x65", true]
+                                                     }
+                                                   ],
+                                                   _ ->
+        {:ok, [res]}
       end)
 
       response =
@@ -148,7 +186,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
 
       assert received_address.hash == address.hash
       assert received_address.fetched_coin_balance == expected_wei
-      assert received_address.fetched_coin_balance_block_number == 1
+      assert received_address.fetched_coin_balance_block_number == 101
     end
   end
 
@@ -1381,6 +1419,332 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
     end
   end
 
+  describe "pendingtxlist" do
+    test "with missing address hash", %{conn: conn} do
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert response["message"] =~ "'address' is required"
+      assert response["status"] == "0"
+      assert Map.has_key?(response, "result")
+      refute response["result"]
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "with an invalid address hash", %{conn: conn} do
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "badhash"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert response["message"] =~ "Invalid address format"
+      assert response["status"] == "0"
+      assert Map.has_key?(response, "result")
+      refute response["result"]
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "with an address that doesn't exist", %{conn: conn} do
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "0x8bf38d4764929064f2d4d3a56520a76ab3df415b"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert response["result"] == []
+      assert response["status"] == "0"
+      assert response["message"] == "No transactions found"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "with a valid address", %{conn: conn} do
+      address = insert(:address)
+
+      transaction =
+        :transaction
+        |> insert(from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}"
+      }
+
+      expected_result = [
+        %{
+          "hash" => "#{transaction.hash}",
+          "nonce" => "#{transaction.nonce}",
+          "from" => "#{transaction.from_address_hash}",
+          "to" => "#{transaction.to_address_hash}",
+          "value" => "#{transaction.value.value}",
+          "gas" => "#{transaction.gas}",
+          "gasPrice" => "#{transaction.gas_price.value}",
+          "input" => "#{transaction.input}",
+          "contractAddress" => "#{transaction.created_contract_address_hash}",
+          "cumulativeGasUsed" => "#{transaction.cumulative_gas_used}",
+          "gasUsed" => "#{transaction.gas_used}"
+        }
+      ]
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert response["result"] == expected_result
+      assert response["status"] == "1"
+      assert response["message"] == "OK"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "with address with multiple transactions", %{conn: conn} do
+      address1 = insert(:address)
+      address2 = insert(:address)
+
+      transactions =
+        3
+        |> insert_list(:transaction, from_address: address1)
+
+      :transaction
+      |> insert(from_address: address2)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address1.hash}"
+      }
+
+      expected_transaction_hashes = Enum.map(transactions, &"#{&1.hash}")
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert length(response["result"]) == 3
+
+      for returned_transaction <- response["result"] do
+        assert returned_transaction["hash"] in expected_transaction_hashes
+      end
+
+      assert response["status"] == "1"
+      assert response["message"] == "OK"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "with valid pagination params", %{conn: conn} do
+      address = insert(:address)
+
+      _transactions_1 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      _transactions_2 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      transactions_3 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}",
+        # page number
+        "page" => "1",
+        # page size
+        "offset" => "2"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      page1_hashes = Enum.map(response["result"], & &1["hash"])
+
+      assert length(response["result"]) == 2
+
+      for transaction <- transactions_3 do
+        assert "#{transaction.hash}" in page1_hashes
+      end
+
+      assert response["status"] == "1"
+      assert response["message"] == "OK"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "ignores pagination params when invalid", %{conn: conn} do
+      address = insert(:address)
+
+      _transactions_1 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      _transactions_2 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      _transactions_3 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}",
+        # page number
+        "page" => "invalidpage",
+        # page size
+        "offset" => "invalidoffset"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert length(response["result"]) == 6
+      assert response["status"] == "1"
+      assert response["message"] == "OK"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "ignores offset param if offset is less than 1", %{conn: conn} do
+      address = insert(:address)
+
+      6
+      |> insert_list(:transaction, from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}",
+        # page number
+        "page" => "1",
+        # page size
+        "offset" => "0"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert length(response["result"]) == 6
+      assert response["status"] == "1"
+      assert response["message"] == "OK"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "ignores offset param if offset is over 10,000", %{conn: conn} do
+      address = insert(:address)
+
+      6
+      |> insert_list(:transaction, from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}",
+        # page number
+        "page" => "1",
+        # page size
+        "offset" => "10_500"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert length(response["result"]) == 6
+      assert response["status"] == "1"
+      assert response["message"] == "OK"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "with page number with no results", %{conn: conn} do
+      address = insert(:address)
+
+      _transactions_1 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      _transactions_2 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      _transactions_3 =
+        2
+        |> insert_list(:transaction, from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}",
+        # page number
+        "page" => "5",
+        # page size
+        "offset" => "2"
+      }
+
+      assert response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert response["result"] == []
+      assert response["status"] == "0"
+      assert response["message"] == "No transactions found"
+      assert :ok = ExJsonSchema.Validator.validate(txlist_schema(), response)
+    end
+
+    test "supports GET and POST requests", %{conn: conn} do
+      address = insert(:address)
+
+      :transaction
+      |> insert(from_address: address)
+
+      params = %{
+        "module" => "account",
+        "action" => "pendingtxlist",
+        "address" => "#{address.hash}"
+      }
+
+      assert get_response =
+               conn
+               |> get("/api", params)
+               |> json_response(200)
+
+      assert post_response =
+               conn
+               |> post("/api", params)
+               |> json_response(200)
+
+      assert get_response == post_response
+    end
+  end
+
   describe "txlistinternal" do
     test "with missing txhash and address", %{conn: conn} do
       params = %{
@@ -1453,7 +1817,13 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
 
       internal_transaction =
         :internal_transaction_create
-        |> insert(transaction: transaction, index: 0, from_address: address)
+        |> insert(
+          transaction: transaction,
+          index: 0,
+          from_address: address,
+          block_hash: transaction.block_hash,
+          block_index: 0
+        )
         |> with_contract_creation(contract_address)
 
       params = %{
@@ -1502,7 +1872,9 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         transaction: transaction,
         index: 0,
         type: :reward,
-        error: "some error"
+        error: "some error",
+        block_hash: transaction.block_hash,
+        block_index: 0
       ]
 
       insert(:internal_transaction_create, internal_transaction_details)
@@ -1532,7 +1904,12 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         |> with_block()
 
       for index <- 0..2 do
-        insert(:internal_transaction_create, transaction: transaction, index: index)
+        insert(:internal_transaction_create,
+          transaction: transaction,
+          index: index,
+          block_hash: transaction.block_hash,
+          block_index: index
+        )
       end
 
       params = %{
@@ -1606,7 +1983,14 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
 
       internal_transaction =
         :internal_transaction_create
-        |> insert(transaction: transaction, index: 0, from_address: address)
+        |> insert(
+          transaction: transaction,
+          index: 0,
+          from_address: address,
+          block_number: block.number,
+          block_hash: transaction.block_hash,
+          block_index: 0
+        )
         |> with_contract_creation(contract_address)
 
       params = %{
@@ -1658,7 +2042,10 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         transaction: transaction,
         index: 0,
         type: :reward,
-        error: "some error"
+        error: "some error",
+        block_number: transaction.block_number,
+        block_hash: transaction.block_hash,
+        block_index: 0
       ]
 
       insert(:internal_transaction_create, internal_transaction_details)
@@ -1693,7 +2080,10 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         internal_transaction_details = %{
           from_address: address,
           transaction: transaction,
-          index: index
+          index: index,
+          block_number: transaction.block_number,
+          block_hash: transaction.block_hash,
+          block_index: index
         }
 
         insert(:internal_transaction_create, internal_transaction_details)
@@ -1787,7 +2177,9 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         insert(:token_transfer, %{
           token_contract_address: token_address,
           token_id: 666,
-          transaction: transaction
+          transaction: transaction,
+          block: transaction.block,
+          block_number: transaction.block_number
         })
 
       {:ok, _} = Chain.token_from_address_hash(token_transfer.token_contract_address_hash)
@@ -1804,7 +2196,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
                |> get("/api", params)
                |> json_response(200)
 
-      assert result["value"] == to_string(token_transfer.token_id)
+      assert result["tokenID"] == to_string(token_transfer.token_id)
       assert response["status"] == "1"
       assert response["message"] == "OK"
       assert :ok = ExJsonSchema.Validator.validate(tokentx_schema(), response)
@@ -1817,7 +2209,9 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         |> insert()
         |> with_block()
 
-      token_transfer = insert(:token_transfer, transaction: transaction)
+      token_transfer =
+        insert(:token_transfer, block: transaction.block, transaction: transaction, block_number: block.number)
+
       {:ok, token} = Chain.token_from_address_hash(token_transfer.token_contract_address_hash)
 
       params = %{
@@ -1875,7 +2269,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
                |> get("/api", params)
                |> json_response(200)
 
-      assert response["message"] =~ "Invalid contractaddress format"
+      assert response["message"] =~ "Invalid contract address format"
       assert response["status"] == "0"
       assert Map.has_key?(response, "result")
       refute response["result"]
@@ -1894,8 +2288,20 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
         |> insert()
         |> with_block()
 
-      insert(:token_transfer, from_address: address, transaction: transaction)
-      insert(:token_transfer, from_address: address, token_contract_address: contract_address, transaction: transaction)
+      insert(:token_transfer,
+        from_address: address,
+        transaction: transaction,
+        block: transaction.block,
+        block_number: transaction.block_number
+      )
+
+      insert(:token_transfer,
+        from_address: address,
+        token_contract_address: contract_address,
+        transaction: transaction,
+        block: transaction.block,
+        block_number: transaction.block_number
+      )
 
       params = %{
         "module" => "account",
@@ -1936,7 +2342,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
     end
 
-    test "with contractaddress but without address", %{conn: conn} do
+    test "with contract address but without address", %{conn: conn} do
       params = %{
         "module" => "account",
         "action" => "tokenbalance",
@@ -1955,7 +2361,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
     end
 
-    test "with address but without contractaddress", %{conn: conn} do
+    test "with address but without contract address", %{conn: conn} do
       params = %{
         "module" => "account",
         "action" => "tokenbalance",
@@ -1974,7 +2380,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
     end
 
-    test "with an invalid contractaddress hash", %{conn: conn} do
+    test "with an invalid contract address hash", %{conn: conn} do
       params = %{
         "module" => "account",
         "action" => "tokenbalance",
@@ -2014,7 +2420,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
     end
 
-    test "with a contractaddress and address that doesn't exist", %{conn: conn} do
+    test "with a contract address and address that doesn't exist", %{conn: conn} do
       params = %{
         "module" => "account",
         "action" => "tokenbalance",
@@ -2033,7 +2439,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
     end
 
-    test "with contractaddress and address without row in token_balances table", %{conn: conn} do
+    test "with contract address and address without row in token_balances table", %{conn: conn} do
       token = insert(:token)
       address = insert(:address)
 
@@ -2055,14 +2461,14 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
     end
 
-    test "with contractaddress and address with existing balance in token_balances table", %{conn: conn} do
-      token_balance = insert(:token_balance)
+    test "with contract address and address with existing balance in token_balances table", %{conn: conn} do
+      current_token_balance = insert(:address_current_token_balance)
 
       params = %{
         "module" => "account",
         "action" => "tokenbalance",
-        "contractaddress" => to_string(token_balance.token_contract_address_hash),
-        "address" => to_string(token_balance.address_hash)
+        "contractaddress" => to_string(current_token_balance.token_contract_address_hash),
+        "address" => to_string(current_token_balance.address_hash)
       }
 
       assert response =
@@ -2070,7 +2476,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
                |> get("/api", params)
                |> json_response(200)
 
-      assert response["result"] == to_string(token_balance.value)
+      assert response["result"] == to_string(current_token_balance.value)
       assert response["status"] == "1"
       assert response["message"] == "OK"
       assert :ok = ExJsonSchema.Validator.validate(tokenbalance_schema(), response)
@@ -2154,7 +2560,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
     end
 
     test "with address with existing balance in token_balances table", %{conn: conn} do
-      token_balance = :token_balance |> insert() |> Repo.preload(:token)
+      token_balance = :address_current_token_balance |> insert() |> Repo.preload(:token)
 
       params = %{
         "module" => "account",
@@ -2187,9 +2593,9 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
     test "with address with multiple tokens", %{conn: conn} do
       address = insert(:address)
       other_address = insert(:address)
-      insert(:token_balance, address: address)
-      insert(:token_balance, address: address)
-      insert(:token_balance, address: other_address)
+      insert(:address_current_token_balance, address: address)
+      insert(:address_current_token_balance, address: address)
+      insert(:address_current_token_balance, address: other_address)
 
       params = %{
         "module" => "account",
@@ -2615,6 +3021,7 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
           "logIndex" => %{"type" => "string"},
           "value" => %{"type" => "string"},
           "tokenName" => %{"type" => "string"},
+          "tokenID" => %{"type" => "string"},
           "tokenSymbol" => %{"type" => "string"},
           "tokenDecimal" => %{"type" => "string"},
           "transactionIndex" => %{"type" => "string"},
@@ -2672,5 +3079,41 @@ defmodule BlockScoutWeb.API.RPC.AddressControllerTest do
     }
     |> put_in(["properties", "result"], result)
     |> ExJsonSchema.Schema.resolve()
+  end
+
+  defp eth_block_number_fake_response(block_quantity) do
+    %{
+      id: 0,
+      jsonrpc: "2.0",
+      result: %{
+        "author" => "0x0000000000000000000000000000000000000000",
+        "difficulty" => "0x20000",
+        "extraData" => "0x",
+        "gasLimit" => "0x663be0",
+        "gasUsed" => "0x0",
+        "hash" => "0x5b28c1bfd3a15230c9a46b399cd0f9a6920d432e85381cc6a140b06e8410112f",
+        "logsBloom" =>
+          "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "miner" => "0x0000000000000000000000000000000000000000",
+        "number" => block_quantity,
+        "parentHash" => "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "receiptsRoot" => "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+        "sealFields" => [
+          "0x80",
+          "0xb8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "sha3Uncles" => "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+        "signature" =>
+          "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "size" => "0x215",
+        "stateRoot" => "0xfad4af258fd11939fae0c6c6eec9d340b1caac0b0196fd9a1bc3f489c5bf00b3",
+        "step" => "0",
+        "timestamp" => "0x0",
+        "totalDifficulty" => "0x20000",
+        "transactions" => [],
+        "transactionsRoot" => "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+        "uncles" => []
+      }
+    }
   end
 end

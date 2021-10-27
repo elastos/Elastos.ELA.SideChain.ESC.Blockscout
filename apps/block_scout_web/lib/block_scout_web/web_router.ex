@@ -10,6 +10,7 @@ defmodule BlockScoutWeb.WebRouter do
     plug(:fetch_flash)
     plug(:protect_from_forgery)
     plug(BlockScoutWeb.CSPHeader)
+    plug(BlockScoutWeb.ChecksumAddress)
   end
 
   # Disallows Iframes (write routes)
@@ -23,12 +24,23 @@ defmodule BlockScoutWeb.WebRouter do
 
     resources("/", ChainController, only: [:show], singleton: true, as: :chain)
 
-    resources("/market_history_chart", Chain.MarketHistoryChartController,
+    resources("/market-history-chart", Chain.MarketHistoryChartController,
       only: [:show],
       singleton: true
     )
 
-    resources "/blocks", BlockController, only: [:index, :show], param: "hash_or_number" do
+    resources("/transaction-history-chart", Chain.TransactionHistoryChartController,
+      only: [:show],
+      singleton: true
+    )
+
+    resources "/block", BlockController, only: [:show], param: "hash_or_number" do
+      resources("/transactions", BlockTransactionController, only: [:index], as: :transaction)
+    end
+
+    resources("/blocks", BlockController, as: :blocks, only: [:index])
+
+    resources "/blocks", BlockController, as: :block_secondary, only: [:show], param: "hash_or_number" do
       resources("/transactions", BlockTransactionController, only: [:index], as: :transaction)
     end
 
@@ -36,22 +48,26 @@ defmodule BlockScoutWeb.WebRouter do
 
     get("/uncles", BlockController, :uncle, as: :uncle)
 
-    resources("/pending_transactions", PendingTransactionController, only: [:index])
+    get("/validators", StakesController, :index, as: :validators, assigns: %{filter: :validator})
+    get("/active-pools", StakesController, :index, as: :active_pools, assigns: %{filter: :active})
+    get("/inactive-pools", StakesController, :index, as: :inactive_pools, assigns: %{filter: :inactive})
 
-    resources("/recent_transactions", RecentTransactionsController, only: [:index])
+    resources("/pending-transactions", PendingTransactionController, only: [:index])
+
+    resources("/recent-transactions", RecentTransactionsController, only: [:index])
 
     get("/txs", TransactionController, :index)
 
     resources "/tx", TransactionController, only: [:show] do
       resources(
-        "/internal_transactions",
+        "/internal-transactions",
         TransactionInternalTransactionController,
         only: [:index],
         as: :internal_transaction
       )
 
       resources(
-        "/raw_trace",
+        "/raw-trace",
         TransactionRawTraceController,
         only: [:index],
         as: :raw_trace
@@ -59,7 +75,7 @@ defmodule BlockScoutWeb.WebRouter do
 
       resources("/logs", TransactionLogController, only: [:index], as: :log)
 
-      resources("/token_transfers", TransactionTokenTransferController,
+      resources("/token-transfers", TransactionTokenTransferController,
         only: [:index],
         as: :token_transfer
       )
@@ -67,11 +83,15 @@ defmodule BlockScoutWeb.WebRouter do
 
     resources("/accounts", AddressController, only: [:index])
 
+    resources("/tokens", TokensController, only: [:index])
+
+    resources("/bridged-tokens", BridgedTokensController, only: [:index, :show])
+
     resources "/address", AddressController, only: [:show] do
       resources("/transactions", AddressTransactionController, only: [:index], as: :transaction)
 
       resources(
-        "/internal_transactions",
+        "/internal-transactions",
         AddressInternalTransactionController,
         only: [:index],
         as: :internal_transaction
@@ -92,7 +112,7 @@ defmodule BlockScoutWeb.WebRouter do
       )
 
       resources(
-        "/decompiled_contracts",
+        "/decompiled-contracts",
         AddressDecompiledContractController,
         only: [:index],
         as: :decompiled_contract
@@ -113,14 +133,56 @@ defmodule BlockScoutWeb.WebRouter do
       )
 
       resources(
-        "/read_contract",
+        "/verify-via-flattened-code",
+        AddressContractVerificationViaFlattenedCodeController,
+        only: [:new],
+        as: :verify_contract_via_flattened_code
+      )
+
+      resources(
+        "/verify-via-json",
+        AddressContractVerificationViaJsonController,
+        only: [:new],
+        as: :verify_contract_via_json
+      )
+
+      resources(
+        "/verify-vyper-contract",
+        AddressContractVerificationVyperController,
+        only: [:new],
+        as: :verify_vyper_contract
+      )
+
+      resources(
+        "/read-contract",
         AddressReadContractController,
         only: [:index, :show],
         as: :read_contract
       )
 
       resources(
-        "/token_transfers",
+        "/read-proxy",
+        AddressReadProxyController,
+        only: [:index, :show],
+        as: :read_proxy
+      )
+
+      resources(
+        "/write-contract",
+        AddressWriteContractController,
+        only: [:index, :show],
+        as: :write_contract
+      )
+
+      resources(
+        "/write-proxy",
+        AddressWriteProxyController,
+        only: [:index, :show],
+        as: :write_proxy
+      )
+
+      resources(
+        "/token-transfers",
         AddressTokenTransferController,
         only: [:index],
         as: :token_transfers
@@ -128,7 +190,7 @@ defmodule BlockScoutWeb.WebRouter do
 
       resources("/tokens", AddressTokenController, only: [:index], as: :token) do
         resources(
-          "/token_transfers",
+          "/token-transfers",
           AddressTokenTransferController,
           only: [:index],
           as: :transfers
@@ -136,44 +198,44 @@ defmodule BlockScoutWeb.WebRouter do
       end
 
       resources(
-        "/token_balances",
+        "/token-balances",
         AddressTokenBalanceController,
         only: [:index],
         as: :token_balance
       )
 
       resources(
-        "/coin_balances",
+        "/coin-balances",
         AddressCoinBalanceController,
         only: [:index],
         as: :coin_balance
       )
 
       resources(
-        "/coin_balances/by_day",
+        "/coin-balances/by-day",
         AddressCoinBalanceByDayController,
         only: [:index],
         as: :coin_balance_by_day
       )
     end
 
-    resources "/tokens", Tokens.TokenController, only: [:show], as: :token do
+    resources "/token", Tokens.TokenController, only: [:show], as: :token do
       resources(
-        "/token_transfers",
+        "/token-transfers",
         Tokens.TransferController,
         only: [:index],
         as: :transfer
       )
 
       resources(
-        "/read_contract",
+        "/read-contract",
         Tokens.ReadContractController,
         only: [:index],
         as: :read_contract
       )
 
       resources(
-        "/token_holders",
+        "/token-holders",
         Tokens.HolderController,
         only: [:index],
         as: :holder
@@ -193,7 +255,7 @@ defmodule BlockScoutWeb.WebRouter do
         as: :instance
       ) do
         resources(
-          "/token_transfers",
+          "/token-transfers",
           Tokens.Instance.TransferController,
           only: [:index],
           as: :transfer
@@ -205,31 +267,106 @@ defmodule BlockScoutWeb.WebRouter do
           only: [:index],
           as: :metadata
         )
+
+        resources(
+          "/token-holders",
+          Tokens.Instance.HolderController,
+          only: [:index],
+          as: :holder
+        )
+      end
+    end
+
+    resources "/tokens", Tokens.TokenController, only: [:show], as: :token_secondary do
+      resources(
+        "/token-transfers",
+        Tokens.TransferController,
+        only: [:index],
+        as: :transfer
+      )
+
+      resources(
+        "/read-contract",
+        Tokens.ReadContractController,
+        only: [:index],
+        as: :read_contract
+      )
+
+      resources(
+        "/token-holders",
+        Tokens.HolderController,
+        only: [:index],
+        as: :holder
+      )
+
+      resources(
+        "/inventory",
+        Tokens.InventoryController,
+        only: [:index],
+        as: :inventory
+      )
+
+      resources(
+        "/instance",
+        Tokens.InstanceController,
+        only: [:show],
+        as: :instance
+      ) do
+        resources(
+          "/token-transfers",
+          Tokens.Instance.TransferController,
+          only: [:index],
+          as: :transfer
+        )
+
+        resources(
+          "/metadata",
+          Tokens.Instance.MetadataController,
+          only: [:index],
+          as: :metadata
+        )
+
+        resources(
+          "/token-holders",
+          Tokens.Instance.HolderController,
+          only: [:index],
+          as: :holder
+        )
       end
     end
 
     resources(
-      "/smart_contracts",
+      "/smart-contracts",
       SmartContractController,
       only: [:index, :show],
       as: :smart_contract
     )
 
-    get("/address_counters", AddressController, :address_counters)
+    get("/address-counters", AddressController, :address_counters)
 
     get("/search", ChainController, :search)
 
-    get("/search_logs", AddressLogsController, :search_logs)
+    get("/search-logs", AddressLogsController, :search_logs)
 
-    get("/transactions_csv", AddressTransactionController, :transactions_csv)
+    get("/search-results", SearchController, :search_results)
 
-    get("/token_autocomplete", ChainController, :token_autocomplete)
+    get("/csv-export", CsvExportController, :index)
 
-    get("/token_transfers_csv", AddressTransactionController, :token_transfers_csv)
+    post("/captcha", CaptchaController, :index)
 
-    get("/chain_blocks", ChainController, :chain_blocks, as: :chain_blocks)
+    get("/transactions-csv", AddressTransactionController, :transactions_csv)
 
-    get("/token_counters", Tokens.TokenController, :token_counters)
+    get("/token-autocomplete", ChainController, :token_autocomplete)
+
+    get("/token-transfers-csv", AddressTransactionController, :token_transfers_csv)
+
+    get("/internal-transactions-csv", AddressTransactionController, :internal_transactions_csv)
+
+    get("/logs-csv", AddressTransactionController, :logs_csv)
+
+    get("/chain-blocks", ChainController, :chain_blocks, as: :chain_blocks)
+
+    get("/token-counters", Tokens.TokenController, :token_counters)
 
     get("/*path", PageNotFoundController, :index)
   end

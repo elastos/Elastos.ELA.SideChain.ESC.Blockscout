@@ -7,10 +7,10 @@ defmodule Explorer.Chain.Block do
 
   use Explorer.Schema
 
-  alias Explorer.Chain.{Address, Gas, Hash, Transaction}
+  alias Explorer.Chain.{Address, Gas, Hash, PendingBlockOperation, Transaction, Wei}
   alias Explorer.Chain.Block.{Reward, SecondDegreeRelation}
 
-  @optional_attrs ~w(internal_transactions_indexed_at size refetch_needed total_difficulty difficulty)a
+  @optional_attrs ~w(size refetch_needed total_difficulty difficulty base_fee_per_gas)a
 
   @required_attrs ~w(consensus gas_limit gas_used hash miner_hash nonce number parent_hash timestamp)a
 
@@ -46,7 +46,7 @@ defmodule Explorer.Chain.Block do
    * `timestamp` - When the block was collated
    * `total_difficulty` - the total `difficulty` of the chain until this block.
    * `transactions` - the `t:Explorer.Chain.Transaction.t/0` in this block.
-   * `internal_transactions_indexed_at` - when `internal_transactions` were fetched by `Indexer`.
+   * `base_fee_per_gas` - Minimum fee required per unit of gas. Fee adjusts based on network congestion.
   """
   @type t :: %__MODULE__{
           consensus: boolean(),
@@ -63,8 +63,9 @@ defmodule Explorer.Chain.Block do
           timestamp: DateTime.t(),
           total_difficulty: difficulty(),
           transactions: %Ecto.Association.NotLoaded{} | [Transaction.t()],
-          internal_transactions_indexed_at: DateTime.t(),
-          refetch_needed: boolean()
+          refetch_needed: boolean(),
+          base_fee_per_gas: Wei.t(),
+          is_empty: boolean()
         }
 
   @primary_key {:hash, Hash.Full, autogenerate: false}
@@ -78,8 +79,9 @@ defmodule Explorer.Chain.Block do
     field(:size, :integer)
     field(:timestamp, :utc_datetime_usec)
     field(:total_difficulty, :decimal)
-    field(:internal_transactions_indexed_at, :utc_datetime_usec)
     field(:refetch_needed, :boolean)
+    field(:base_fee_per_gas, Wei)
+    field(:is_empty, :boolean)
 
     timestamps()
 
@@ -97,6 +99,8 @@ defmodule Explorer.Chain.Block do
     has_many(:transaction_forks, Transaction.Fork, foreign_key: :uncle_hash)
 
     has_many(:rewards, Reward, foreign_key: :block_hash)
+
+    has_one(:pending_operations, PendingBlockOperation, foreign_key: :block_hash)
   end
 
   def changeset(%__MODULE__{} = block, attrs) do
@@ -116,11 +120,23 @@ defmodule Explorer.Chain.Block do
   end
 
   def blocks_without_reward_query do
+    consensus_blocks_query =
+      from(
+        b in __MODULE__,
+        where: b.consensus == true
+      )
+
+    validator_rewards =
+      from(
+        r in Reward,
+        where: r.address_type == ^"validator"
+      )
+
     from(
-      b in __MODULE__,
-      left_join: r in Reward,
+      b in subquery(consensus_blocks_query),
+      left_join: r in subquery(validator_rewards),
       on: [block_hash: b.hash],
-      where: is_nil(r.block_hash) and b.consensus == true
+      where: is_nil(r.block_hash)
     )
   end
 

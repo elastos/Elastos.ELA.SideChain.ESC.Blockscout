@@ -1,11 +1,16 @@
 defmodule BlockScoutWeb.Tokens.Instance.TransferController do
   use BlockScoutWeb, :controller
 
+  alias BlockScoutWeb.Controller
   alias BlockScoutWeb.Tokens.TransferView
   alias Explorer.{Chain, Market}
+  alias Explorer.Chain.Address
   alias Phoenix.View
 
   import BlockScoutWeb.Chain, only: [split_list_by_page: 1, paging_options: 1, next_page_params: 3]
+
+  {:ok, burn_address_hash} = Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
+  @burn_address_hash burn_address_hash
 
   def index(conn, %{"token_id" => token_address_hash, "instance_id" => token_id, "type" => "JSON"} = params) do
     with {:ok, hash} <- Chain.string_to_address_hash(token_address_hash),
@@ -23,8 +28,8 @@ defmodule BlockScoutWeb.Tokens.Instance.TransferController do
             token_instance_transfer_path(
               conn,
               :index,
+              Address.checksum(token.contract_address_hash),
               token_id,
-              token.contract_address_hash,
               Map.delete(next_page_params, "type")
             )
         end
@@ -36,7 +41,8 @@ defmodule BlockScoutWeb.Tokens.Instance.TransferController do
             "_token_transfer.html",
             conn: conn,
             token: token,
-            token_transfer: transfer
+            token_transfer: transfer,
+            burn_address_hash: @burn_address_hash
           )
         end)
 
@@ -58,7 +64,7 @@ defmodule BlockScoutWeb.Tokens.Instance.TransferController do
         conn,
         "index.html",
         token_instance: token_transfer,
-        current_path: current_path(conn),
+        current_path: Controller.current_full_path(conn),
         token: Market.add_price(token),
         total_token_transfers: Chain.count_token_transfers_from_token_hash_and_token_id(hash, token_id)
       )

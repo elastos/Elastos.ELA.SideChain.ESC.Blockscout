@@ -13,17 +13,15 @@
     <!-- USD value of the balance -->
     <span
       data-wei-value="<%= if @address.fetched_coin_balance, do: @address.fetched_coin_balance.value %>"
-      <% if !empty_exchange_rate?(@exchange_rate) do %>
+      <%= if !empty_exchange_rate?(@exchange_rate) do %>
         data-usd-exchange-rate="<%= @exchange_rate.usd_value %>">
       <% end %>
     </span>
   </td>
-  <%= if balance_percentage_enabled?() do %>
+  <%= if balance_percentage_enabled?(@total_supply) do %>
     <td class="stakes-td color-lighten">
       <!-- percentage of coins from total supply -->
-      <%= if @total_supply do %>
-        <%= balance_percentage(@address, @total_supply) %>
-      <% end %>
+      <%= balance_percentage(@address, @total_supply) %>
     </td>
   <% end %>
   <td class="stakes-td">

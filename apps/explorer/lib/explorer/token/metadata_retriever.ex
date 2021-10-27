@@ -5,7 +5,8 @@ defmodule Explorer.Token.MetadataRetriever do
 
   require Logger
 
-  alias Explorer.Chain.Hash
+  alias Explorer.{Chain, Repo}
+  alias Explorer.Chain.{Hash, Token}
   alias Explorer.SmartContract.Reader
 
   @contract_abi [
@@ -86,11 +87,20 @@ defmodule Explorer.Token.MetadataRetriever do
     }
   ]
 
+  # 18160ddd = keccak256(totalSupply())
+  # 313ce567 = keccak256(decimals())
+  # 06fdde03 = keccak256(name())
+  # 95d89b41 = keccak256(symbol())
   @contract_functions %{
-    "totalSupply" => [],
-    "decimals" => [],
-    "name" => [],
-    "symbol" => []
+    "18160ddd" => [],
+    "313ce567" => [],
+    "06fdde03" => [],
+    "95d89b41" => []
+  }
+
+  # 18160ddd = keccak256(totalSupply())
+  @total_supply_function %{
+    "18160ddd" => []
   }
 
   @doc """
@@ -120,14 +130,14 @@ defmodule Explorer.Token.MetadataRetriever do
   It will retry to fetch each function in the Smart Contract according to :token_functions_reader_max_retries
   configured in the application env case one of them raised error.
   """
-  @spec get_functions_of([String.t()] | Hash.t() | String.t()) :: Map.t() | {:ok, [Map.t()]}
+  @spec get_functions_of([String.t()] | Hash.t() | String.t()) :: map() | {:ok, [map()]}
   def get_functions_of(hashes) when is_list(hashes) do
     requests =
       hashes
       |> Enum.flat_map(fn hash ->
         @contract_functions
-        |> Enum.map(fn {function, args} ->
-          %{contract_address: hash, function_name: function, args: args}
+        |> Enum.map(fn {method_id, args} ->
+          %{contract_address: hash, method_id: method_id, args: args}
         end)
       end)
 
@@ -140,7 +150,7 @@ defmodule Explorer.Token.MetadataRetriever do
       |> Enum.zip(hashes)
       |> Enum.map(fn {result, hash} ->
         formatted_result =
-          ["decimals", "name", "symbol", "totalSupply"]
+          ["name", "totalSupply", "decimals", "symbol"]
           |> Enum.zip(result)
           |> format_contract_functions_result(hash)
 
@@ -159,8 +169,30 @@ defmodule Explorer.Token.MetadataRetriever do
   end
 
   def get_functions_of(contract_address_hash) when is_binary(contract_address_hash) do
+    res =
+      contract_address_hash
+      |> fetch_functions_from_contract(@contract_functions)
+      |> format_contract_functions_result(contract_address_hash)
+
+    if res == %{} do
+      token_to_update =
+        Token
+        |> Repo.get_by(contract_address_hash: contract_address_hash)
+        |> Repo.preload([:contract_address])
+
+      set_skip_metadata(token_to_update)
+    end
+
+    res
+  end
+
+  def set_skip_metadata(token_to_update) do
+    Chain.update_token(%{token_to_update | updated_at: DateTime.utc_now()}, %{skip_metadata: true})
+  end
+
+  def get_total_supply_of(contract_address_hash) when is_binary(contract_address_hash) do
     contract_address_hash
-    |> fetch_functions_from_contract(@contract_functions)
+    |> fetch_functions_from_contract(@total_supply_function)
     |> format_contract_functions_result(contract_address_hash)
   end
 
@@ -227,8 +259,8 @@ defmodule Explorer.Token.MetadataRetriever do
 
   defp format_contract_functions_result(contract_functions, contract_address_hash) do
     contract_functions =
-      for {function_name, {:ok, [function_data]}} <- contract_functions, into: %{} do
-        {atomized_key(function_name), function_data}
+      for {method_id, {:ok, [function_data]}} <- contract_functions, into: %{} do
+        {atomized_key(method_id), function_data}
       end
 
     contract_functions
@@ -240,9 +272,13 @@ defmodule Explorer.Token.MetadataRetriever do
   defp atomized_key("name"), do: :name
   defp atomized_key("symbol"), do: :symbol
   defp atomized_key("totalSupply"), do: :total_supply
+  defp atomized_key("313ce567"), do: :decimals
+  defp atomized_key("06fdde03"), do: :name
+  defp atomized_key("95d89b41"), do: :symbol
+  defp atomized_key("18160ddd"), do: :total_supply
 
   # It's a temp fix to store tokens that have names and/or symbols with characters that the database
-  # doesn't accept. See https://github.com/poanetwork/blockscout/issues/669 for more info.
+  # doesn't accept. See https://github.com/blockscout/blockscout/issues/669 for more info.
   defp handle_invalid_strings(%{name: name, symbol: symbol} = contract_functions, contract_address_hash) do
     name = handle_invalid_name(name, contract_address_hash)
     symbol = handle_invalid_symbol(symbol)

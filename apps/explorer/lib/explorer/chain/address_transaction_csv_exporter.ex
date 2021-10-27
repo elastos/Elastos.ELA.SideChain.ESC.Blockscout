@@ -31,18 +31,24 @@ defmodule Explorer.Chain.AddressTransactionCsvExporter do
 
   @paging_options %PagingOptions{page_size: @page_size + 1}
 
-  @spec export(Address.t()) :: Enumerable.t()
-  def export(address) do
+  @spec export(Address.t(), String.t(), String.t()) :: Enumerable.t()
+  def export(address, from_period, to_period) do
+    from_block = Chain.convert_date_to_min_block(from_period)
+    to_block = Chain.convert_date_to_max_block(to_period)
     exchange_rate = Market.get_exchange_rate(Explorer.coin()) || Token.null()
 
     address.hash
-    |> fetch_all_transactions(@paging_options)
+    |> fetch_all_transactions(from_block, to_block, @paging_options)
     |> to_csv_format(address, exchange_rate)
     |> dump_to_stream()
   end
 
-  defp fetch_all_transactions(address_hash, paging_options, acc \\ []) do
-    options = Keyword.put(@necessity_by_association, :paging_options, paging_options)
+  def fetch_all_transactions(address_hash, from_block, to_block, paging_options, acc \\ []) do
+    options =
+      @necessity_by_association
+      |> Keyword.put(:paging_options, paging_options)
+      |> Keyword.put(:from_block, from_block)
+      |> Keyword.put(:to_block, to_block)
 
     transactions = Chain.address_to_transactions_without_rewards(address_hash, options)
 
@@ -51,7 +57,7 @@ defmodule Explorer.Chain.AddressTransactionCsvExporter do
     case Enum.split(transactions, @page_size) do
       {_transactions, [%Transaction{block_number: block_number, index: index}]} ->
         new_paging_options = %{@paging_options | key: {block_number, index}}
-        fetch_all_transactions(address_hash, new_paging_options, new_acc)
+        fetch_all_transactions(address_hash, from_block, to_block, new_paging_options, new_acc)
 
       {_, []} ->
         new_acc

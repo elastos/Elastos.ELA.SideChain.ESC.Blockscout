@@ -5,17 +5,24 @@ defmodule Explorer.SmartContract.SolcDownloader do
   """
   use GenServer
 
-  alias Explorer.SmartContract.Solidity.CompilerVersion
+  alias Explorer.SmartContract.CompilerVersion
 
   @latest_compiler_refetch_time :timer.minutes(30)
 
   def ensure_exists(version) do
     path = file_path(version)
 
-    if File.exists?(path) do
+    if File.exists?(path) && version !== "latest" do
       path
     else
-      {:ok, compiler_versions} = CompilerVersion.fetch_versions()
+      compiler_versions =
+        case CompilerVersion.fetch_versions(:solc) do
+          {:ok, compiler_versions} ->
+            compiler_versions
+
+          {:error, _} ->
+            []
+        end
 
       if version in compiler_versions do
         GenServer.call(__MODULE__, {:ensure_exists, version}, 60_000)
@@ -83,7 +90,7 @@ defmodule Explorer.SmartContract.SolcDownloader do
   end
 
   defp download(version) do
-    download_path = "https://ethereum.github.io/solc-bin/bin/soljson-#{version}.js"
+    download_path = "https://solc-bin.ethereum.org/bin/soljson-#{version}.js"
 
     download_path
     |> HTTPoison.get!([], timeout: 60_000, recv_timeout: 60_000)

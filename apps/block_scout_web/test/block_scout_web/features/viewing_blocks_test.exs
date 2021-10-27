@@ -59,7 +59,12 @@ defmodule BlockScoutWeb.ViewingBlocksTest do
 
       internal_transaction =
         :internal_transaction_create
-        |> insert(transaction: transaction, index: 0)
+        |> insert(
+          transaction: transaction,
+          index: 0,
+          block_hash: transaction.block_hash,
+          block_index: 1
+        )
         |> with_contract_creation(contract_address)
 
       session
@@ -83,7 +88,8 @@ defmodule BlockScoutWeb.ViewingBlocksTest do
         3,
         :token_transfer,
         transaction: transaction,
-        token_contract_address: contract_token_address
+        token_contract_address: contract_token_address,
+        block: block
       )
 
       session
