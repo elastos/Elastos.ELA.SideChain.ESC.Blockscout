@@ -20,6 +20,7 @@
         <p class="footer-info-text"><%= gettext("Blockscout is a tool for inspecting and analyzing EVM based blockchains. Blockchain explorer for Ethereum Networks.") %></p>
         <div class="footer-social-icons">
           <a href="https://github.com/elastos/Elastos.ELA.SideChain.ESC.Blockscout" rel="noreferrer" target="_blank" class="footer-social-icon" title='<%= gettext("Github") %>'>
+
             <div class="footer-social-icon-container fontawesome-icon github"></div>
           </a>
           <a href="https://twitter.com/cyber__republic" rel="noreferrer" target="_blank" class="footer-social-icon" title='<%= gettext("Twitter") %>'>
