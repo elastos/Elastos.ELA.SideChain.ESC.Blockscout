@@ -53,6 +53,38 @@ defmodule Indexer.Block.Fetcher.Receipts do
     end)
   end
 
+  def change_value_with_topup(transactions_params, logs) when is_list(transactions_params) and is_list(logs) do
+
+    if Enum.empty?(logs) do
+      transactions_params
+    else
+      if Enum.count(logs) == 1 do
+        transaction_hash_to_logs =
+          Enum.into(logs, %{}, fn %{transaction_hash: transaction_hash} = log ->
+            {transaction_hash, log}
+          end)
+
+        transactions_params = Enum.map(transactions_params, fn %{hash: transaction_hash} = transaction_params ->
+          log = Map.get(transaction_hash_to_logs, transaction_hash)
+
+          
+          require Logger
+          Logger.warn("-=-=-=-=-=-=-=-=-==-=-change_value_with_topup ==-=-=-=-=-=-=-=: #{inspect(log)}, #{inspect(transactions_params)}")
+          
+
+          if log && !is_nil(log[:five_topic]) do
+            transaction_params = Map.put(transaction_params, :value, log[:five_topic])
+          else
+            transaction_params
+          end
+        end)
+        transactions_params
+      else
+        transactions_params
+      end
+    end
+  end
+
   defp set_block_number_to_logs(%{logs: logs} = params, transaction_params) do
     logs_with_block_numbers =
       Enum.map(logs, fn %{transaction_hash: transaction_hash, block_number: block_number} = log_params ->

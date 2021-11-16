@@ -188,6 +188,7 @@ defmodule EthereumJSONRPC.Log do
     |> Map.put(:second_topic, Enum.at(topics, 1))
     |> Map.put(:third_topic, Enum.at(topics, 2))
     |> Map.put(:fourth_topic, Enum.at(topics, 3))
+    |> Map.put(:five_topic, Enum.at(topics, 4))
   end
 
   defp put_type(params, %{"type" => type}) do

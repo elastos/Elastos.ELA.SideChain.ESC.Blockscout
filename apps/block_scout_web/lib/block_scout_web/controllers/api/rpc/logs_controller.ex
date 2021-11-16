@@ -42,7 +42,7 @@ defmodule BlockScoutWeb.API.RPC.LogsController do
     # all_of: all of these parameters are required
     all_of: ["fromBlock", "toBlock"],
     # one_of: at least one of these parameters is required
-    one_of: ["address", "topic0", "topic1", "topic2", "topic3"]
+    one_of: ["address", "topic0", "topic1", "topic2", "topic3", "topic4"]
   }
 
   @doc """
@@ -101,6 +101,7 @@ defmodule BlockScoutWeb.API.RPC.LogsController do
           second_topic: params["topic1"],
           third_topic: params["topic2"],
           fourth_topic: params["topic3"],
+          five_topic: params["topic4"],
           topic0_1_opr: params["topic0_1_opr"],
           topic0_2_opr: params["topic0_2_opr"],
           topic0_3_opr: params["topic0_3_opr"],
@@ -108,6 +109,11 @@ defmodule BlockScoutWeb.API.RPC.LogsController do
           topic1_3_opr: params["topic1_3_opr"],
           topic2_3_opr: params["topic2_3_opr"]
         }
+
+        """
+        require Logger
+        Logger.warn("-=-=-=-=-=-=-=-=-==-=-to_valid_format==-=-=-=-=-=-=-=: #{inspect(validated_params)}")
+        """
 
         {:ok, validated_params}
       else

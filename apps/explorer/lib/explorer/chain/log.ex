@@ -37,6 +37,7 @@ defmodule Explorer.Chain.Log do
           second_topic: String.t(),
           third_topic: String.t(),
           fourth_topic: String.t(),
+          five_topic: String.t(),
           transaction: %Ecto.Association.NotLoaded{} | Transaction.t(),
           transaction_hash: Hash.Full.t(),
           index: non_neg_integer(),
@@ -50,6 +51,7 @@ defmodule Explorer.Chain.Log do
     field(:second_topic, :string)
     field(:third_topic, :string)
     field(:fourth_topic, :string)
+    field(:five_topic, :string)
     field(:index, :integer, primary_key: true)
     field(:type, :string)
     field(:block_number, :integer)
@@ -211,6 +213,7 @@ defmodule Explorer.Chain.Log do
              decode16!(log.second_topic),
              decode16!(log.third_topic),
              decode16!(log.fourth_topic),
+             decode16!(log.five_topic),
              log.data.bytes
            ) do
       {:ok, selector, mapping}

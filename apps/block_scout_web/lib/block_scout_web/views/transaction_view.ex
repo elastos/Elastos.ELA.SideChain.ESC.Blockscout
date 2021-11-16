@@ -20,11 +20,13 @@ defmodule BlockScoutWeb.TransactionView do
   @token_minting_title "Token Minting"
   @token_transfer_title "Token Transfer"
   @token_creation_title "Token Creation"
+  @token_topup_title "Main TopUp"
 
   @token_burning_type :token_burning
   @token_minting_type :token_minting
   @token_creation_type :token_spawning
   @token_transfer_type :token_transfer
+  @token_topup_type :main_topup
 
   defguardp is_transaction_type(mod) when mod in [InternalTransaction, Transaction]
 

@@ -48,6 +48,10 @@ defmodule BlockScoutWeb.Tokens.Helpers do
     end
   end
 
+  defp do_token_transfer_amount(%Token{type: "Main-TopUp"}, _amount, _token_id) do
+    {:ok, "--"}
+  end
+
   defp do_token_transfer_amount(_token, _amount, _amounts, _token_id, _token_ids) do
     nil
   end

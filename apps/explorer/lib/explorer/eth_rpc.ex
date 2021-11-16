@@ -166,7 +166,7 @@ defmodule Explorer.EthRPC do
   defp render_log(log) do
     topics =
       Enum.reject(
-        [log.first_topic, log.second_topic, log.third_topic, log.fourth_topic],
+        [log.first_topic, log.second_topic, log.third_topic, log.fourth_topic, log.five_topic],
         &is_nil/1
       )
 

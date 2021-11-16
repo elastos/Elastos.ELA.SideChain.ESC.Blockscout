@@ -31,9 +31,10 @@ defmodule BlockScoutWeb.API.RPC.LogsView do
          first_topic: first_topic,
          second_topic: second_topic,
          third_topic: third_topic,
-         fourth_topic: fourth_topic
+         fourth_topic: fourth_topic,
+         five_topic: five_topic
        }) do
-    [first_topic, second_topic, third_topic, fourth_topic]
+    [first_topic, second_topic, third_topic, fourth_topic, five_topic]
   end
 
   defp integer_to_hex(integer), do: "0x" <> String.downcase(Integer.to_string(integer, 16))

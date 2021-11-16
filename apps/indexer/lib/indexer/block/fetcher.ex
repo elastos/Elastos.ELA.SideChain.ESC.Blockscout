@@ -132,6 +132,7 @@ defmodule Indexer.Block.Fetcher do
          blocks = TransformBlocks.transform_blocks(blocks_params),
          {:receipts, {:ok, receipt_params}} <- {:receipts, Receipts.fetch(state, transactions_params_without_receipts)},
          %{logs: logs, receipts: receipts} = receipt_params,
+         transactions_params_without_receipts = Receipts.change_value_with_topup(transactions_params_without_receipts, logs),
          transactions_with_receipts = Receipts.put(transactions_params_without_receipts, receipts),
          %{token_transfers: token_transfers, tokens: tokens} = TokenTransfers.parse(logs),
          %{mint_transfers: mint_transfers} = MintTransfers.parse(logs),
