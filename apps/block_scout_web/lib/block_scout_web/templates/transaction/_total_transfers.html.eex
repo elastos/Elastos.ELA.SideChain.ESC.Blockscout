@@ -17,6 +17,8 @@
             <%= render BlockScoutWeb.TransactionView, "_transfer_token_with_id.html", transfer: @transfer, token_id: token_id %>
             </div>
         <% end %>
+    <% {:ok, :topup_instance, value} -> %>
+        <%= render BlockScoutWeb.TransactionView, "_topup_transfer.html", transfer: @transfer, amount: value %>
     <% {:ok, value} -> %>
         <%= value %>
         <%= " " %><%= render BlockScoutWeb.TransactionView, "_link_to_token_symbol.html", transfer: @transfer %>

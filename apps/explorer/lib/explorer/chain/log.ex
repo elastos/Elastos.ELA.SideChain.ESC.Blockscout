@@ -10,7 +10,7 @@ defmodule Explorer.Chain.Log do
   alias Explorer.Chain.{Address, Block, ContractMethod, Data, Hash, Transaction}
 
   @required_attrs ~w(address_hash data block_hash index transaction_hash)a
-  @optional_attrs ~w(first_topic second_topic third_topic fourth_topic type block_number)a
+  @optional_attrs ~w(first_topic second_topic third_topic fourth_topic five_topic type block_number)a
 
   @typedoc """
    * `address` - address of contract that generate the event

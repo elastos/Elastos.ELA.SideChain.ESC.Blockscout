@@ -48,8 +48,12 @@ defmodule BlockScoutWeb.Tokens.Helpers do
     end
   end
 
-  defp do_token_transfer_amount(%Token{type: "Main-TopUp"}, _amount, _token_id) do
-    {:ok, "--"}
+  defp do_token_transfer_amount(%Token{type: "Main-TopUp"}, amount, nil, _token_id, nil) do
+    {:ok, :topup_instance, CurrencyHelpers.format_according_to_decimals(amount, Decimal.new(0))}
+  end
+
+  defp do_token_transfer_amount(%Token{type: "Main-TopUp"}, amount, [], _token_id, []) do
+    {:ok, :topup_instance, CurrencyHelpers.format_according_to_decimals(amount, Decimal.new(0))}
   end
 
   defp do_token_transfer_amount(_token, _amount, _amounts, _token_id, _token_ids) do

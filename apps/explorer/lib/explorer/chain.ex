@@ -7124,7 +7124,11 @@ defmodule Explorer.Chain do
         :token_burning
 
       transfer.to_address_hash !== burn_address_hash && transfer.from_address_hash == burn_address_hash ->
-        :token_minting
+        if String.match?(transfer.token.type, ~r/Main-TopUp/) do
+          :main_topup
+        else
+          :token_minting
+        end
 
       transfer.to_address_hash == burn_address_hash && transfer.from_address_hash == burn_address_hash ->
         :token_spawning
