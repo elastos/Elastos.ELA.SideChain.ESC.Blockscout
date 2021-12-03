@@ -1,0 +1,1 @@
+<%= format_wei_value(%Wei{value: @transfer.amount}, :ether) %>

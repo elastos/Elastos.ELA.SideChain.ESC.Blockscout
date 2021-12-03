@@ -81,8 +81,10 @@ defmodule Indexer.Transform.TokenTransfers do
        Logger.warn("-=-=-=-=-=-=-=-=-==-=-parse_params==-=-=-=-=-=-=-=: #{inspect(log)}")
        """
 
+      [amount] = decode_data(log.five_topic, [{:uint, 256}])
+      
       token_transfer = %{
-        amount: 0,
+        amount: Decimal.new(amount || 0),
         block_number: log.block_number,
         log_index: log.index,
         block_hash: log.block_hash,
