@@ -67,11 +67,6 @@ defmodule Indexer.Block.Fetcher.Receipts do
         transactions_params = Enum.map(transactions_params, fn %{hash: transaction_hash} = transaction_params ->
           log = Map.get(transaction_hash_to_logs, transaction_hash)
 
-          """
-          require Logger
-          Logger.warn("-=-=-=-=-=-=-=-=-==-=-change_value_with_topup ==-=-=-=-=-=-=-=: #{inspect(log)}, #{inspect(log[:five_topic])}")
-          """
-
           if log && !is_nil(log[:five_topic]) do
             transaction_params = Map.put(transaction_params, :value, log[:five_topic])
           else

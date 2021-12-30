@@ -110,11 +110,6 @@ defmodule BlockScoutWeb.API.RPC.LogsController do
           topic2_3_opr: params["topic2_3_opr"]
         }
 
-        """
-        require Logger
-        Logger.warn("-=-=-=-=-=-=-=-=-==-=-to_valid_format==-=-=-=-=-=-=-=: #{inspect(validated_params)}")
-        """
-
         {:ok, validated_params}
       else
         {:error, param_key} ->
