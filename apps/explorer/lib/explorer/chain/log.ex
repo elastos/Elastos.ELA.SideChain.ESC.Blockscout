@@ -213,7 +213,6 @@ defmodule Explorer.Chain.Log do
              decode16!(log.second_topic),
              decode16!(log.third_topic),
              decode16!(log.fourth_topic),
-             decode16!(log.five_topic),
              log.data.bytes
            ) do
       {:ok, selector, mapping}

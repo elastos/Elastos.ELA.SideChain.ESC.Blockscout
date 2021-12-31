@@ -100,7 +100,6 @@ defmodule Explorer.Chain do
   @revert_error_method_id "08c379a0"
 
   @burn_address_hash_str "0x0000000000000000000000000000000000000000"
-  @topup_address_hash_str "0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a"
 
   @typedoc """
   The name of an association on the `t:Ecto.Schema.t/0`
