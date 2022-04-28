@@ -68,7 +68,7 @@ defmodule Indexer.Block.Fetcher.Receipts do
           log = Map.get(transaction_hash_to_logs, transaction_hash)
 
           if log && !is_nil(log[:five_topic]) do
-            transaction_params = Map.put(transaction_params, :value, log[:five_topic])
+            Map.put(transaction_params, :value, log[:five_topic])
           else
             transaction_params
           end
