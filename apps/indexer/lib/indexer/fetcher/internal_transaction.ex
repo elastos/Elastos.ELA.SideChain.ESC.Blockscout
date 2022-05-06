@@ -166,7 +166,7 @@ defmodule Indexer.Fetcher.InternalTransaction do
 
           transactions ->
             try do
-              transactions = Enum.reject(transactions, fn x -> x[:hash_data] == "0x6bdd8021991d42307ff4553509e577ac744941d8edfcf6ddc07d1f5fe411ded5" end)
+              transactions = Enum.reject(transactions, fn x -> x[:hash_data] == "0x6bdd8021991d42307ff4553509e577ac744941d8edfcf6ddc07d1f5fe411ded5" || x[:hash_data] == "0xab47028605f3baec05bcc85796e1915953189ff9b9bffbbd1a4bed172856bff8" end)
               EthereumJSONRPC.fetch_internal_transactions(transactions, json_rpc_named_arguments)
             catch
               :exit, error ->
