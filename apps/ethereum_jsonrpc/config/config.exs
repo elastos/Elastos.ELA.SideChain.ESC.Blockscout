@@ -26,6 +26,8 @@ config :ethereum_jsonrpc, EthereumJSONRPC.Tracer,
   adapter: SpandexDatadog.Adapter,
   trace_key: :blockscout
 
+config :ethereum_jsonrpc, EthereumJSONRPC.Geth, debug_trace_transaction_timeout: "60s"
+
 config :logger, :ethereum_jsonrpc,
   # keep synced with `config/config.exs`
   format: "$dateT$time $metadata[$level] $message\n",
