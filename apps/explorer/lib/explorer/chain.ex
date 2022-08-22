@@ -6022,6 +6022,7 @@ defmodule Explorer.Chain do
         %Token{type: "ERC-20"} -> :erc20
         %Token{type: "ERC-721"} -> :erc721
         %Token{type: "ERC-1155"} -> :erc1155
+        %Token{type: "Main-TopUp"} -> :main_topup
         _ -> nil
       end
     else
