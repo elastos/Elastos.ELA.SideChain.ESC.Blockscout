@@ -195,9 +195,18 @@ defmodule Explorer.Etherscan do
         |> where_end_block_match(options)
         |> Chain.wrapped_union_subquery()
 
-      query_to_address_hash_wrapped
-      |> union(^query_from_address_hash_wrapped)
-      |> union(^query_created_contract_address_hash_wrapped)
+      full_query =
+        query_to_address_hash_wrapped
+        |> union(^query_from_address_hash_wrapped)
+        |> union(^query_created_contract_address_hash_wrapped)
+
+      full_query
+      |> Chain.wrapped_union_subquery()
+      |> order_by(
+        [q],
+        desc: q.block_number,
+        desc: q.index
+      )
       |> Repo.all()
     else
       query =
