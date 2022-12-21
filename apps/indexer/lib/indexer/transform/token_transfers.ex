@@ -42,17 +42,17 @@ defmodule Indexer.Transform.TokenTransfers do
     |> Enum.map(fn token_transfer ->
       token_transfer.token_contract_address_hash
     end)
-    |> Enum.dedup()
+    |> Enum.uniq()
     |> Enum.each(&update_token/1)
 
-    tokens_dedup = tokens |> Enum.dedup()
+    tokens_uniq = tokens |> Enum.uniq()
 
-    token_transfers_from_logs_dedup = %{
-      tokens: tokens_dedup,
+    token_transfers_from_logs_uniq = %{
+      tokens: tokens_uniq,
       token_transfers: token_transfers
     }
 
-    token_transfers_from_logs_dedup
+    token_transfers_from_logs_uniq
   end
 
   defp do_parse(log, %{tokens: tokens, token_transfers: token_transfers} = acc, type \\ :erc20_erc721) do
@@ -120,7 +120,7 @@ defmodule Indexer.Transform.TokenTransfers do
       to_address_hash: truncate_address_hash(log.third_topic),
       token_contract_address_hash: log.address_hash,
       transaction_hash: log.transaction_hash,
-      token_id: nil,
+      token_ids: nil,
       token_type: "ERC-20"
     }
 
@@ -144,7 +144,7 @@ defmodule Indexer.Transform.TokenTransfers do
       from_address_hash: truncate_address_hash(log.second_topic),
       to_address_hash: truncate_address_hash(log.third_topic),
       token_contract_address_hash: log.address_hash,
-      token_id: token_id || 0,
+      token_ids: [token_id || 0],
       transaction_hash: log.transaction_hash,
       token_type: "ERC-721"
     }
@@ -176,7 +176,7 @@ defmodule Indexer.Transform.TokenTransfers do
       from_address_hash: encode_address_hash(from_address_hash),
       to_address_hash: encode_address_hash(to_address_hash),
       token_contract_address_hash: log.address_hash,
-      token_id: token_id,
+      token_ids: [token_id],
       transaction_hash: log.transaction_hash,
       token_type: "ERC-721"
     }
@@ -233,7 +233,6 @@ defmodule Indexer.Transform.TokenTransfers do
       transaction_hash: log.transaction_hash,
       token_type: "ERC-1155",
       token_ids: token_ids,
-      token_id: nil,
       amounts: values
     }
 
@@ -258,7 +257,7 @@ defmodule Indexer.Transform.TokenTransfers do
       token_contract_address_hash: log.address_hash,
       transaction_hash: log.transaction_hash,
       token_type: "ERC-1155",
-      token_id: token_id
+      token_ids: [token_id]
     }
 
     token = %{

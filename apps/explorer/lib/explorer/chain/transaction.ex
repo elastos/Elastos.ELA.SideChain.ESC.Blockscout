@@ -9,6 +9,7 @@ defmodule Explorer.Chain.Transaction do
 
   alias ABI.FunctionSelector
 
+  alias Ecto.Association.NotLoaded
   alias Ecto.Changeset
 
   alias Explorer.{Chain, Repo}
@@ -22,6 +23,7 @@ defmodule Explorer.Chain.Transaction do
     Hash,
     InternalTransaction,
     Log,
+    SmartContract,
     TokenTransfer,
     Transaction,
     Wei
@@ -30,12 +32,9 @@ defmodule Explorer.Chain.Transaction do
   alias Explorer.Chain.Transaction.{Fork, Status}
 
   @optional_attrs ~w(max_priority_fee_per_gas max_fee_per_gas block_hash block_number created_contract_address_hash cumulative_gas_used earliest_processing_start
-                     error gas_used index created_contract_code_indexed_at status
-                     to_address_hash revert_reason)a
+                     error gas_used index created_contract_code_indexed_at status to_address_hash revert_reason type has_error_in_internal_txs)a
 
   @required_attrs ~w(from_address_hash gas gas_price hash input nonce r s v value)a
-
-  @required_attrs_for_1559 ~w(type)a
 
   @typedoc """
   X coordinate module n in
@@ -137,6 +136,7 @@ defmodule Explorer.Chain.Transaction do
    * `max_priority_fee_per_gas` - User defined maximum fee (tip) per unit of gas paid to validator for transaction prioritization.
    * `max_fee_per_gas` - Maximum total amount per unit of gas a user is willing to pay for a transaction, including base fee and priority fee.
    * `type` - New transaction type identifier introduced in EIP 2718 (Berlin HF)
+   * `has_error_in_internal_txs` - shows if the internal transactions related to transaction have errors
   """
   @type t :: %__MODULE__{
           block: %Ecto.Association.NotLoaded{} | Block.t() | nil,
@@ -168,10 +168,11 @@ defmodule Explorer.Chain.Transaction do
           uncles: %Ecto.Association.NotLoaded{} | [Block.t()],
           v: v(),
           value: Wei.t(),
-          revert_reason: String.t(),
+          revert_reason: String.t() | nil,
           max_priority_fee_per_gas: wei_per_gas | nil,
           max_fee_per_gas: wei_per_gas | nil,
-          type: non_neg_integer() | nil
+          type: non_neg_integer() | nil,
+          has_error_in_internal_txs: boolean()
         }
 
   @derive {Poison.Encoder,
@@ -236,6 +237,7 @@ defmodule Explorer.Chain.Transaction do
     field(:max_priority_fee_per_gas, Wei)
     field(:max_fee_per_gas, Wei)
     field(:type, :integer)
+    field(:has_error_in_internal_txs, :boolean)
 
     # A transient field for deriving old block hash during transaction upserts.
     # Used to force refetch of a block in case a transaction is re-collated
@@ -409,18 +411,11 @@ defmodule Explorer.Chain.Transaction do
 
   """
   def changeset(%__MODULE__{} = transaction, attrs \\ %{}) do
-    enabled_1559 = Application.get_env(:explorer, :enabled_1559_support)
-
-    required_attrs = if enabled_1559, do: @required_attrs ++ @required_attrs_for_1559, else: @required_attrs
-
-    attrs_to_cast =
-      if enabled_1559,
-        do: @required_attrs ++ @required_attrs_for_1559 ++ @optional_attrs,
-        else: @required_attrs ++ @optional_attrs
+    attrs_to_cast = @required_attrs ++ @optional_attrs
 
     transaction
     |> cast(attrs, attrs_to_cast)
-    |> validate_required(required_attrs)
+    |> validate_required(@required_attrs)
     |> validate_collated()
     |> validate_error()
     |> validate_status()
@@ -438,6 +433,7 @@ defmodule Explorer.Chain.Transaction do
         where:
           tt.token_contract_address_hash == ^address_hash or tt.to_address_hash == ^address_hash or
             tt.from_address_hash == ^address_hash,
+        order_by: [asc: tt.log_index],
         preload: [:token, [from_address: :names], [to_address: :names]]
       )
 
@@ -471,6 +467,18 @@ defmodule Explorer.Chain.Transaction do
   def decoded_input_data(%__MODULE__{to_address: %{contract_code: nil}}), do: {:error, :not_a_contract_call}
 
   def decoded_input_data(%__MODULE__{
+        to_address: %{smart_contract: %NotLoaded{}},
+        input: input,
+        hash: hash
+      }) do
+    decoded_input_data(%__MODULE__{
+      to_address: %{smart_contract: nil},
+      input: input,
+      hash: hash
+    })
+  end
+
+  def decoded_input_data(%__MODULE__{
         to_address: %{smart_contract: nil},
         input: %{bytes: <<method_id::binary-size(4), _::binary>> = data},
         hash: hash
@@ -486,7 +494,7 @@ defmodule Explorer.Chain.Transaction do
       candidates_query
       |> Repo.all()
       |> Enum.flat_map(fn candidate ->
-        case do_decoded_input_data(data, [candidate.abi], nil, hash) do
+        case do_decoded_input_data(data, %SmartContract{abi: [candidate.abi], address_hash: nil}, hash) do
           {:ok, _, _, _} = decoded -> [decoded]
           _ -> []
         end
@@ -501,10 +509,10 @@ defmodule Explorer.Chain.Transaction do
 
   def decoded_input_data(%__MODULE__{
         input: %{bytes: data},
-        to_address: %{smart_contract: %{abi: abi, address_hash: address_hash}},
+        to_address: %{smart_contract: smart_contract},
         hash: hash
       }) do
-    case do_decoded_input_data(data, abi, address_hash, hash) do
+    case do_decoded_input_data(data, smart_contract, hash) do
       # In some cases transactions use methods of some unpredictadle contracts, so we can try to look up for method in a whole DB
       {:error, :could_not_decode} ->
         case decoded_input_data(%__MODULE__{
@@ -527,8 +535,8 @@ defmodule Explorer.Chain.Transaction do
     end
   end
 
-  defp do_decoded_input_data(data, abi, address_hash, hash) do
-    full_abi = Chain.combine_proxy_implementation_abi(address_hash, abi)
+  defp do_decoded_input_data(data, smart_contract, hash) do
+    full_abi = Chain.combine_proxy_implementation_abi(smart_contract)
 
     with {:ok, {selector, values}} <- find_and_decode(full_abi, data, hash),
          {:ok, mapping} <- selector_mapping(selector, values, hash),
@@ -564,14 +572,16 @@ defmodule Explorer.Chain.Transaction do
 
   def get_method_name(_), do: "Transfer"
 
-  defp parse_method_name(method_desc) do
+  def parse_method_name(method_desc, need_upcase \\ true) do
     method_desc
     |> String.split("(")
     |> Enum.at(0)
-    |> upcase_first
+    |> upcase_first(need_upcase)
   end
 
-  defp upcase_first(<<first::utf8, rest::binary>>), do: String.upcase(<<first::utf8>>) <> rest
+  defp upcase_first(string, false), do: string
+
+  defp upcase_first(<<first::utf8, rest::binary>>, true), do: String.upcase(<<first::utf8>>) <> rest
 
   defp function_call(name, mapping) do
     text =

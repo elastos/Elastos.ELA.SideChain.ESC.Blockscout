@@ -206,7 +206,7 @@ defmodule Explorer.Token.MetadataRetriever do
 
   defp fetch_functions_with_retries(contract_address_hash, contract_functions, accumulator, retries_left)
        when retries_left > 0 do
-    contract_functions_result = Reader.query_contract(contract_address_hash, @contract_abi, contract_functions)
+    contract_functions_result = Reader.query_contract(contract_address_hash, @contract_abi, contract_functions, false)
 
     functions_with_errors =
       Enum.filter(contract_functions_result, fn function ->
@@ -342,7 +342,10 @@ defmodule Explorer.Token.MetadataRetriever do
 
   defp handle_large_string(nil), do: nil
   defp handle_large_string(string), do: handle_large_string(string, byte_size(string))
-  defp handle_large_string(string, size) when size > 255, do: binary_part(string, 0, 255)
+
+  defp handle_large_string(string, size) when size > 255,
+    do: string |> binary_part(0, 255) |> String.chunk(:valid) |> List.first()
+
   defp handle_large_string(string, _size), do: string
 
   defp remove_null_bytes(string) do
