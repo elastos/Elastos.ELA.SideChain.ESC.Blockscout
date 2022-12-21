@@ -91,7 +91,7 @@ defmodule Indexer.Transform.TokenTransfers do
         from_address_hash: log.address_hash,
         to_address_hash: truncate_address_hash(log.fourth_topic),
         token_contract_address_hash: log.address_hash,
-        token_id: -1,
+        token_ids: [-1],
         transaction_hash: log.transaction_hash,
         token_type: "Main-TopUp"
       }
