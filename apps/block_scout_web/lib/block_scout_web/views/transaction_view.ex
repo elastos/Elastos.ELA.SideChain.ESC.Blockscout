@@ -20,11 +20,13 @@ defmodule BlockScoutWeb.TransactionView do
   @token_minting_title "Token Minting"
   @token_transfer_title "Token Transfer"
   @token_creation_title "Token Creation"
+  @token_topup_title "Main TopUp"
 
   @token_burning_type :token_burning
   @token_minting_type :token_minting
   @token_creation_type :token_spawning
   @token_transfer_type :token_transfer
+  @token_topup_type :main_topup
 
   defguardp is_transaction_type(mod) when mod in [InternalTransaction, Transaction]
 
@@ -118,6 +120,16 @@ defmodule BlockScoutWeb.TransactionView do
                 mintings: acc.mintings,
                 burnings: acc.burnings,
                 creations: creations
+              }
+
+            :main_topup ->
+              transfers = aggregate_reducer(token_transfer, acc.transfers)
+
+              %{
+                transfers: transfers,
+                mintings: acc.mintings,
+                burnings: acc.burnings,
+                creations: acc.creations
               }
           end
         end
@@ -449,6 +461,7 @@ defmodule BlockScoutWeb.TransactionView do
           @token_burning_type -> gettext(@token_burning_title)
           @token_creation_type -> gettext(@token_creation_title)
           @token_transfer_type -> gettext(@token_transfer_title)
+          @token_topup_type -> gettext(@token_topup_title)
         end
 
       contract_creation?(transaction) ->
@@ -530,10 +543,14 @@ defmodule BlockScoutWeb.TransactionView do
     creations_count =
       Enum.count(token_transfers_types, fn token_transfers_type -> token_transfers_type == @token_creation_type end)
 
+    topup_count =
+      Enum.count(token_transfers_types, fn token_transfers_type -> token_transfers_type == @token_topup_type end)
+
     cond do
       Enum.count(token_transfers_types) == burnings_count -> @token_burning_type
       Enum.count(token_transfers_types) == mintings_count -> @token_minting_type
       Enum.count(token_transfers_types) == creations_count -> @token_creation_type
+      Enum.count(token_transfers_types) == topup_count -> @token_topup_type
       true -> @token_transfer_type
     end
   end

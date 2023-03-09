@@ -114,6 +114,12 @@
             <%= @log.fourth_topic %>
           </div>
         <% end %>
+        <%= unless is_nil(@log.five_topic) do %>
+          <div class="text-dark">
+            <span>[4]</span>
+            <%= @log.five_topic %>
+          </div>
+        <% end %>
       </div>
     </dd>
     <dt class="col-lg-2">

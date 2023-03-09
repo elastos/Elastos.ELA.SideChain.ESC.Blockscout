@@ -10,7 +10,7 @@ defmodule Explorer.Chain.Log do
   alias Explorer.Chain.{Address, Block, ContractMethod, Data, Hash, Transaction}
 
   @required_attrs ~w(address_hash data block_hash index transaction_hash)a
-  @optional_attrs ~w(first_topic second_topic third_topic fourth_topic type block_number)a
+  @optional_attrs ~w(first_topic second_topic third_topic fourth_topic five_topic type block_number)a
 
   @typedoc """
    * `address` - address of contract that generate the event
@@ -37,6 +37,7 @@ defmodule Explorer.Chain.Log do
           second_topic: String.t(),
           third_topic: String.t(),
           fourth_topic: String.t(),
+          five_topic: String.t(),
           transaction: %Ecto.Association.NotLoaded{} | Transaction.t(),
           transaction_hash: Hash.Full.t(),
           index: non_neg_integer(),
@@ -50,6 +51,7 @@ defmodule Explorer.Chain.Log do
     field(:second_topic, :string)
     field(:third_topic, :string)
     field(:fourth_topic, :string)
+    field(:five_topic, :string)
     field(:index, :integer, primary_key: true)
     field(:type, :string)
     field(:block_number, :integer)

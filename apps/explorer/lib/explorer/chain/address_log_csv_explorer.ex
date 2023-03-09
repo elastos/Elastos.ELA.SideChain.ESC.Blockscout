@@ -75,7 +75,8 @@ defmodule Explorer.Chain.AddressLogCsvExporter do
           to_string(log.first_topic),
           to_string(log.second_topic),
           to_string(log.third_topic),
-          to_string(log.fourth_topic)
+          to_string(log.fourth_topic),
+          to_string(log.five_topic)
         ]
       end)
 

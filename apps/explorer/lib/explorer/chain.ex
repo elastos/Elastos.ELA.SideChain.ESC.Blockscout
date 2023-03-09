@@ -596,7 +596,7 @@ defmodule Explorer.Chain do
     from(log in base_query,
       where:
         log.first_topic == ^topic or log.second_topic == ^topic or log.third_topic == ^topic or
-          log.fourth_topic == ^topic
+          log.fourth_topic == ^topic or log.five_topic == ^topic
     )
   end
 
@@ -6022,6 +6022,7 @@ defmodule Explorer.Chain do
         %Token{type: "ERC-20"} -> :erc20
         %Token{type: "ERC-721"} -> :erc721
         %Token{type: "ERC-1155"} -> :erc1155
+        %Token{type: "Main-TopUp"} -> :main_topup
         _ -> nil
       end
     else
@@ -7123,7 +7124,11 @@ defmodule Explorer.Chain do
         :token_burning
 
       transfer.to_address_hash !== burn_address_hash && transfer.from_address_hash == burn_address_hash ->
-        :token_minting
+        if String.match?(transfer.token.type, ~r/Main-TopUp/) do
+          :main_topup
+        else
+          :token_minting
+        end
 
       transfer.to_address_hash == burn_address_hash && transfer.from_address_hash == burn_address_hash ->
         :token_spawning
