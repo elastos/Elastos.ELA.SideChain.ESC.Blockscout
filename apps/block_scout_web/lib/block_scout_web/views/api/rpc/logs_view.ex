@@ -31,6 +31,15 @@ defmodule BlockScoutWeb.API.RPC.LogsView do
          first_topic: first_topic,
          second_topic: second_topic,
          third_topic: third_topic,
+         fourth_topic: fourth_topic
+       }) do
+    [first_topic, second_topic, third_topic, fourth_topic]
+  end
+
+  defp get_topics(%{
+         first_topic: first_topic,
+         second_topic: second_topic,
+         third_topic: third_topic,
          fourth_topic: fourth_topic,
          five_topic: five_topic
        }) do
