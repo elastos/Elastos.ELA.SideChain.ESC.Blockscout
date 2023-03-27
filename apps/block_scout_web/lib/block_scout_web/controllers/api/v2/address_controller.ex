@@ -12,9 +12,11 @@ defmodule BlockScoutWeb.API.V2.AddressController do
   import BlockScoutWeb.PagingHelper,
     only: [delete_parameters_from_next_page_params: 1, token_transfers_types_options: 1]
 
-  alias BlockScoutWeb.API.V2.{AddressView, BlockView, TransactionView}
+  alias BlockScoutWeb.AccessHelpers
+  alias BlockScoutWeb.API.V2.{BlockView, TransactionView}
+  alias Explorer.ExchangeRates.Token
   alias Explorer.{Chain, Market}
-  alias Indexer.Fetcher.TokenBalanceOnDemand
+  alias Indexer.Fetcher.{CoinBalanceOnDemand, TokenBalanceOnDemand}
 
   @transaction_necessity_by_association [
     necessity_by_association: %{
@@ -32,23 +34,28 @@ defmodule BlockScoutWeb.API.V2.AddressController do
     necessity_by_association: %{
       :to_address => :optional,
       :from_address => :optional,
-      :block => :optional
+      :block => :optional,
+      :transaction => :optional
     }
   ]
 
   action_fallback(BlockScoutWeb.API.V2.FallbackController)
 
-  def address(conn, %{"address_hash" => address_hash_string}) do
+  def address(conn, %{"address_hash" => address_hash_string} = params) do
     with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
          {:not_found, {:ok, address}} <- {:not_found, Chain.hash_to_address(address_hash)} do
+      CoinBalanceOnDemand.trigger_fetch(address)
+
       conn
       |> put_status(200)
       |> render(:address, %{address: address})
     end
   end
 
-  def counters(conn, %{"address_hash" => address_hash_string}) do
+  def counters(conn, %{"address_hash" => address_hash_string} = params) do
     with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
          {:not_found, {:ok, address}} <- {:not_found, Chain.hash_to_address(address_hash)} do
       {validation_count} = Chain.address_counters(address)
 
@@ -65,8 +72,10 @@ defmodule BlockScoutWeb.API.V2.AddressController do
     end
   end
 
-  def token_balances(conn, %{"address_hash" => address_hash_string}) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+  def token_balances(conn, %{"address_hash" => address_hash_string} = params) do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       token_balances =
         address_hash
         |> Chain.fetch_last_token_balances()
@@ -86,7 +95,9 @@ defmodule BlockScoutWeb.API.V2.AddressController do
   end
 
   def transactions(conn, %{"address_hash" => address_hash_string} = params) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       options =
         @transaction_necessity_by_association
         |> Keyword.merge(paging_options(params))
@@ -105,8 +116,51 @@ defmodule BlockScoutWeb.API.V2.AddressController do
     end
   end
 
+  def token_transfers(
+        conn,
+        %{"address_hash" => address_hash_string, "token" => token_address_hash_string} = params
+      ) do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:format, {:ok, token_address_hash}} <- {:format, Chain.string_to_address_hash(token_address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:ok, false} <- AccessHelpers.restricted_access?(token_address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)},
+         {:not_found, {:ok, _}} <- {:not_found, Chain.token_from_address_hash(token_address_hash)} do
+      options =
+        [
+          necessity_by_association: %{
+            :to_address => :optional,
+            :from_address => :optional,
+            :block => :optional,
+            :token => :optional,
+            :transaction => :optional
+          }
+        ]
+        |> Keyword.merge(paging_options(params))
+
+      results_plus_one =
+        Chain.address_hash_to_token_transfers_by_token_address_hash(
+          address_hash,
+          token_address_hash,
+          options
+        )
+
+      {token_transfers, next_page} = split_list_by_page(results_plus_one)
+
+      next_page_params =
+        next_page |> next_page_params(token_transfers, params) |> delete_parameters_from_next_page_params()
+
+      conn
+      |> put_status(200)
+      |> put_view(TransactionView)
+      |> render(:token_transfers, %{token_transfers: token_transfers, next_page_params: next_page_params})
+    end
+  end
+
   def token_transfers(conn, %{"address_hash" => address_hash_string} = params) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       options =
         @token_transfer_necessity_by_association
         |> Keyword.merge(paging_options(params))
@@ -132,7 +186,9 @@ defmodule BlockScoutWeb.API.V2.AddressController do
   end
 
   def internal_transactions(conn, %{"address_hash" => address_hash_string} = params) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       full_options =
         [
           necessity_by_association: %{
@@ -164,7 +220,9 @@ defmodule BlockScoutWeb.API.V2.AddressController do
   end
 
   def logs(conn, %{"address_hash" => address_hash_string, "topic" => topic} = params) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       prepared_topic = String.trim(topic)
 
       formatted_topic = if String.starts_with?(prepared_topic, "0x"), do: prepared_topic, else: "0x" <> prepared_topic
@@ -183,7 +241,9 @@ defmodule BlockScoutWeb.API.V2.AddressController do
   end
 
   def logs(conn, %{"address_hash" => address_hash_string} = params) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       results_plus_one = Chain.address_to_logs(address_hash, paging_options(params))
       {logs, next_page} = split_list_by_page(results_plus_one)
 
@@ -197,7 +257,9 @@ defmodule BlockScoutWeb.API.V2.AddressController do
   end
 
   def blocks_validated(conn, %{"address_hash" => address_hash_string} = params) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       full_options =
         Keyword.merge(
           [
@@ -225,8 +287,8 @@ defmodule BlockScoutWeb.API.V2.AddressController do
 
   def coin_balance_history(conn, %{"address_hash" => address_hash_string} = params) do
     with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
-         {:not_found, {:ok, _address}, _} <-
-           {:not_found, Chain.hash_to_address(address_hash), :empty_items_with_next_page_params} do
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash)} do
       full_options = paging_options(params)
 
       results_plus_one = Chain.address_to_coin_balances(address_hash, full_options)
@@ -238,21 +300,67 @@ defmodule BlockScoutWeb.API.V2.AddressController do
 
       conn
       |> put_status(200)
-      |> put_view(AddressView)
       |> render(:coin_balances, %{coin_balances: coin_balances, next_page_params: next_page_params})
     end
   end
 
-  def coin_balance_history_by_day(conn, %{"address_hash" => address_hash_string}) do
-    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)} do
+  def coin_balance_history_by_day(conn, %{"address_hash" => address_hash_string} = params) do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
       balances_by_day =
         address_hash
         |> Chain.address_to_balances_by_day(true)
 
       conn
       |> put_status(200)
-      |> put_view(AddressView)
       |> render(:coin_balances_by_day, %{coin_balances_by_day: balances_by_day})
     end
+  end
+
+  def tokens(conn, %{"address_hash" => address_hash_string} = params) do
+    with {:format, {:ok, address_hash}} <- {:format, Chain.string_to_address_hash(address_hash_string)},
+         {:ok, false} <- AccessHelpers.restricted_access?(address_hash_string, params),
+         {:not_found, {:ok, _address}} <- {:not_found, Chain.hash_to_address(address_hash, [], false)} do
+      results_plus_one =
+        address_hash
+        |> Chain.fetch_last_token_balances(
+          params
+          |> delete_parameters_from_next_page_params()
+          |> paging_options()
+          |> Keyword.merge(token_transfers_types_options(params))
+        )
+        |> Market.add_price()
+
+      {tokens, next_page} = split_list_by_page(results_plus_one)
+
+      next_page_params = next_page |> next_page_params(tokens, params) |> delete_parameters_from_next_page_params()
+
+      conn
+      |> put_status(200)
+      |> render(:tokens, %{tokens: tokens, next_page_params: next_page_params})
+    end
+  end
+
+  def addresses_list(conn, params) do
+    {addresses, next_page} =
+      params
+      |> paging_options()
+      |> Chain.list_top_addresses()
+      |> split_list_by_page()
+
+    next_page_params = next_page_params(next_page, addresses, params)
+
+    exchange_rate = Market.get_exchange_rate(Explorer.coin()) || Token.null()
+    total_supply = Chain.total_supply()
+
+    conn
+    |> put_status(200)
+    |> render(:addresses, %{
+      addresses: addresses,
+      next_page_params: next_page_params,
+      exchange_rate: exchange_rate,
+      total_supply: total_supply
+    })
   end
 end

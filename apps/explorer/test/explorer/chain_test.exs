@@ -28,6 +28,7 @@ defmodule Explorer.ChainTest do
   }
 
   alias Explorer.{Chain, Etherscan}
+  alias Explorer.Chain.Cache.Block, as: BlockCache
   alias Explorer.Chain.Cache.Transaction, as: TransactionCache
   alias Explorer.Chain.InternalTransaction.Type
 
@@ -44,10 +45,10 @@ defmodule Explorer.ChainTest do
   describe "remove_nonconsensus_blocks_from_pending_ops/0" do
     test "removes pending ops for nonconsensus blocks" do
       block = insert(:block)
-      insert(:pending_block_operation, block: block, fetch_internal_transactions: true)
+      insert(:pending_block_operation, block: block, block_number: block.number)
 
       nonconsensus_block = insert(:block, consensus: false)
-      insert(:pending_block_operation, block: nonconsensus_block, fetch_internal_transactions: true)
+      insert(:pending_block_operation, block: nonconsensus_block, block_number: nonconsensus_block.number)
 
       :ok = Chain.remove_nonconsensus_blocks_from_pending_ops()
 
@@ -57,13 +58,13 @@ defmodule Explorer.ChainTest do
 
     test "removes pending ops for nonconsensus blocks by block hashes" do
       block = insert(:block)
-      insert(:pending_block_operation, block: block, fetch_internal_transactions: true)
+      insert(:pending_block_operation, block: block, block_number: block.number)
 
       nonconsensus_block = insert(:block, consensus: false)
-      insert(:pending_block_operation, block: nonconsensus_block, fetch_internal_transactions: true)
+      insert(:pending_block_operation, block: nonconsensus_block, block_number: nonconsensus_block.number)
 
       nonconsensus_block1 = insert(:block, consensus: false)
-      insert(:pending_block_operation, block: nonconsensus_block1, fetch_internal_transactions: true)
+      insert(:pending_block_operation, block: nonconsensus_block1, block_number: nonconsensus_block1.number)
 
       :ok = Chain.remove_nonconsensus_blocks_from_pending_ops([nonconsensus_block1.hash])
 
@@ -102,6 +103,11 @@ defmodule Explorer.ChainTest do
 
       assert is_integer(addresses_with_balance)
       assert addresses_with_balance == 3
+    end
+
+    test "returns 0 on empty table" do
+      start_supervised!(AddressesCounter)
+      assert 0 == Chain.address_estimated_count()
     end
   end
 
@@ -1209,7 +1215,7 @@ defmodule Explorer.ChainTest do
       |> insert()
       |> with_block(block)
 
-      insert(:pending_block_operation, block: block, fetch_internal_transactions: true)
+      insert(:pending_block_operation, block: block, block_number: block.number)
 
       refute Chain.finished_internal_transactions_indexing?()
     end
@@ -1470,6 +1476,9 @@ defmodule Explorer.ChainTest do
 
   describe "indexed_ratio_blocks/0" do
     setup do
+      Supervisor.terminate_child(Explorer.Supervisor, Explorer.Chain.Cache.Block.child_id())
+      Supervisor.restart_child(Explorer.Supervisor, Explorer.Chain.Cache.Block.child_id())
+
       on_exit(fn ->
         Application.put_env(:indexer, :first_block, "")
       end)
@@ -1477,8 +1486,10 @@ defmodule Explorer.ChainTest do
 
     test "returns indexed ratio" do
       for index <- 5..9 do
-        insert(:block, number: index)
+        insert(:block, number: index, consensus: true)
       end
+
+      BlockCache.estimated_count()
 
       assert Decimal.compare(Chain.indexed_ratio_blocks(), Decimal.from_float(0.5)) == :eq
     end
@@ -1489,9 +1500,11 @@ defmodule Explorer.ChainTest do
 
     test "returns 1.0 if fully indexed blocks" do
       for index <- 0..9 do
-        insert(:block, number: index)
+        insert(:block, number: index, consensus: true)
         Process.sleep(200)
       end
+
+      BlockCache.estimated_count()
 
       assert Decimal.compare(Chain.indexed_ratio_blocks(), 1) == :eq
     end
@@ -1500,9 +1513,11 @@ defmodule Explorer.ChainTest do
       Application.put_env(:indexer, :first_block, "5")
 
       for index <- 5..9 do
-        insert(:block, number: index)
+        insert(:block, number: index, consensus: true)
         Process.sleep(200)
       end
+
+      BlockCache.estimated_count()
 
       assert Decimal.compare(Chain.indexed_ratio_blocks(), 1) == :eq
     end
@@ -1520,7 +1535,7 @@ defmodule Explorer.ChainTest do
         block = insert(:block, number: index)
 
         if index === 0 || index === 5 || index === 7 do
-          insert(:pending_block_operation, block: block, fetch_internal_transactions: true)
+          insert(:pending_block_operation, block: block, block_number: block.number)
         end
       end
 

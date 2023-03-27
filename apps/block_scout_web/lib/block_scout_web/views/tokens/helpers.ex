@@ -20,7 +20,7 @@ defmodule BlockScoutWeb.Tokens.Helpers do
     do_token_transfer_amount(token, amount, amounts, token_ids)
   end
 
-  def token_transfer_amount(%{token: token, amount: amount, token_ids: token_ids}) do    
+  def token_transfer_amount(%{token: token, amount: amount, token_ids: token_ids}) do
     do_token_transfer_amount(token, amount, nil, token_ids)
   end
 
@@ -46,14 +46,6 @@ defmodule BlockScoutWeb.Tokens.Helpers do
     else
       {:ok, :erc1155_instance, amounts, token_ids, decimals}
     end
-  end
-
-  defp do_token_transfer_amount(%Token{type: "Main-TopUp"}, amount, nil, _token_id) do
-    {:ok, :topup_instance, CurrencyHelpers.format_according_to_decimals(amount, Decimal.new(0))}
-  end
-
-  defp do_token_transfer_amount(%Token{type: "Main-TopUp"}, amount, [], _token_id) do
-    {:ok, :topup_instance, CurrencyHelpers.format_according_to_decimals(amount, Decimal.new(0))}
   end
 
   defp do_token_transfer_amount(_token, _amount, _amounts, _token_ids) do

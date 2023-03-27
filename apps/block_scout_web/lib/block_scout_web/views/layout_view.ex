@@ -1,21 +1,33 @@
 defmodule BlockScoutWeb.LayoutView do
   use BlockScoutWeb, :view
 
-  alias Explorer.{Chain, CustomContractsHelpers}
+  alias Explorer.Chain
   alias Plug.Conn
   alias Poison.Parser
 
-  import BlockScoutWeb.AddressView, only: [from_address_hash: 1]
-
   @default_other_networks [
     %{
-      title: "Mainnet",
-      url: "https://esc.elastos.io/",
+      title: "POA",
+      url: "https://blockscout.com/poa/core"
     },
     %{
-      title: "Testnet",
-      url: "https://esc-testnet.elastos.io/",
+      title: "Sokol",
+      url: "https://blockscout.com/poa/sokol",
       test_net?: true
+    },
+    %{
+      title: "Gnosis Chain",
+      url: "https://blockscout.com/xdai/mainnet"
+    },
+    %{
+      title: "Ethereum Classic",
+      url: "https://blockscout.com/etc/mainnet",
+      other?: true
+    },
+    %{
+      title: "RSK",
+      url: "https://blockscout.com/rsk/mainnet",
+      other?: true
     }
   ]
 
@@ -34,11 +46,11 @@ defmodule BlockScoutWeb.LayoutView do
   end
 
   def subnetwork_title do
-    Keyword.get(application_config(), :subnetwork) || "Elastos Smart Contract MainNet"
+    Keyword.get(application_config(), :subnetwork) || "Sokol"
   end
 
   def network_title do
-    Keyword.get(application_config(), :network) || "Elastos Smart Contract MainNet"
+    Keyword.get(application_config(), :network) || "POA"
   end
 
   defp application_config do
@@ -106,7 +118,7 @@ defmodule BlockScoutWeb.LayoutView do
           nil
 
         release_link_env_var == "" || release_link_env_var == nil ->
-          "https://github.com/elastos/Elastos.ELA.SideChain.ESC.Blockscout/tree/" <> version
+          "https://github.com/blockscout/blockscout/releases/tag/" <> version
 
         true ->
           release_link_env_var

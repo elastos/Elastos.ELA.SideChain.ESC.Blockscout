@@ -40,4 +40,35 @@ defmodule BlockScoutWeb.API.V2.FallbackController do
     conn
     |> call({:not_found, nil})
   end
+
+  def call(conn, {:restricted_access, true}) do
+    conn
+    |> put_status(:forbidden)
+    |> put_view(ApiView)
+    |> render(:message, %{message: "Restricted access"})
+  end
+
+  def call(conn, {:already_verified, true}) do
+    conn
+    |> put_view(ApiView)
+    |> render(:message, %{message: "Already verified"})
+  end
+
+  def call(conn, {:no_json_file, _}) do
+    conn
+    |> put_view(ApiView)
+    |> render(:message, %{message: "JSON files not found"})
+  end
+
+  def call(conn, {:file_error, _}) do
+    conn
+    |> put_view(ApiView)
+    |> render(:message, %{message: "Error while reading JSON file"})
+  end
+
+  def call(conn, {:libs_format, _}) do
+    conn
+    |> put_view(ApiView)
+    |> render(:message, %{message: "Libraries are not valid JSON map"})
+  end
 end

@@ -1,6 +1,9 @@
 defmodule BlockScoutWeb.API.V2.TransactionControllerTest do
   use BlockScoutWeb.ConnCase
 
+  import EthereumJSONRPC, only: [integer_to_quantity: 1]
+  import Mox
+
   alias Explorer.Chain.{Address, InternalTransaction, Log, TokenTransfer, Transaction}
 
   setup do
@@ -117,13 +120,11 @@ defmodule BlockScoutWeb.API.V2.TransactionControllerTest do
   end
 
   describe "/transactions/{tx_hash}/internal-transactions" do
-    test "return empty list on non existing tx", %{conn: conn} do
+    test "return 404 on non existing tx", %{conn: conn} do
       tx = build(:transaction)
       request = get(conn, "/api/v2/transactions/#{to_string(tx.hash)}/internal-transactions")
 
-      assert response = json_response(request, 200)
-      assert response["items"] == []
-      assert response["next_page_params"] == nil
+      assert %{"message" => "Not found"} = json_response(request, 404)
     end
 
     test "return 422 on invalid tx hash", %{conn: conn} do
@@ -236,13 +237,11 @@ defmodule BlockScoutWeb.API.V2.TransactionControllerTest do
   end
 
   describe "/transactions/{tx_hash}/logs" do
-    test "return empty list on non existing tx", %{conn: conn} do
+    test "return 404 on non existing tx", %{conn: conn} do
       tx = build(:transaction)
       request = get(conn, "/api/v2/transactions/#{to_string(tx.hash)}/logs")
 
-      assert response = json_response(request, 200)
-      assert response["items"] == []
-      assert response["next_page_params"] == nil
+      assert %{"message" => "Not found"} = json_response(request, 404)
     end
 
     test "return 422 on invalid tx hash", %{conn: conn} do
@@ -330,13 +329,11 @@ defmodule BlockScoutWeb.API.V2.TransactionControllerTest do
   end
 
   describe "/transactions/{tx_hash}/token-transfers" do
-    test "return empty list on non existing tx", %{conn: conn} do
+    test "return 404 on non existing tx", %{conn: conn} do
       tx = build(:transaction)
       request = get(conn, "/api/v2/transactions/#{to_string(tx.hash)}/token-transfers")
 
-      assert response = json_response(request, 200)
-      assert response["items"] == []
-      assert response["next_page_params"] == nil
+      assert %{"message" => "Not found"} = json_response(request, 404)
     end
 
     test "return 422 on invalid tx hash", %{conn: conn} do
@@ -540,6 +537,82 @@ defmodule BlockScoutWeb.API.V2.TransactionControllerTest do
     end
   end
 
+  describe "/transactions/{tx_hash}/state-changes" do
+    test "return 404 on non existing tx", %{conn: conn} do
+      tx = build(:transaction)
+      request = get(conn, "/api/v2/transactions/#{to_string(tx.hash)}/state-changes")
+
+      assert %{"message" => "Not found"} = json_response(request, 404)
+    end
+
+    test "return 422 on invalid tx hash", %{conn: conn} do
+      request = get(conn, "/api/v2/transactions/0x/state-changes")
+
+      assert %{"message" => "Invalid parameter(s)"} = json_response(request, 422)
+    end
+
+    test "return existing tx", %{conn: conn} do
+      EthereumJSONRPC.Mox
+      |> stub(:json_rpc, fn
+        [%{id: id, method: "eth_getBalance", params: _}], _options ->
+          {:ok, [%{id: id, result: integer_to_quantity(123)}]}
+
+        [%{id: _id, method: "eth_getBlockByNumber", params: _}], _options ->
+          {:ok,
+           [
+             %{
+               id: 0,
+               jsonrpc: "2.0",
+               result: %{
+                 "author" => "0x0000000000000000000000000000000000000000",
+                 "difficulty" => "0x20000",
+                 "extraData" => "0x",
+                 "gasLimit" => "0x663be0",
+                 "gasUsed" => "0x0",
+                 "hash" => "0x5b28c1bfd3a15230c9a46b399cd0f9a6920d432e85381cc6a140b06e8410112f",
+                 "logsBloom" =>
+                   "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                 "miner" => "0x0000000000000000000000000000000000000000",
+                 "number" => integer_to_quantity(1),
+                 "parentHash" => "0x0000000000000000000000000000000000000000000000000000000000000000",
+                 "receiptsRoot" => "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+                 "sealFields" => [
+                   "0x80",
+                   "0xb8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+                 ],
+                 "sha3Uncles" => "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                 "signature" =>
+                   "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                 "size" => "0x215",
+                 "stateRoot" => "0xfad4af258fd11939fae0c6c6eec9d340b1caac0b0196fd9a1bc3f489c5bf00b3",
+                 "step" => "0",
+                 "timestamp" => "0x0",
+                 "totalDifficulty" => "0x20000",
+                 "transactions" => [],
+                 "transactionsRoot" => "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+                 "uncles" => []
+               }
+             }
+           ]}
+      end)
+
+      insert(:block)
+      insert(:block)
+      address_a = insert(:address)
+      address_b = insert(:address)
+
+      transaction =
+        :transaction
+        |> insert(from_address: address_a, to_address: address_b, value: 1000)
+        |> with_block(status: :ok)
+
+      request = get(conn, "/api/v2/transactions/#{to_string(transaction.hash)}/state-changes")
+
+      assert response = json_response(request, 200)
+      assert Enum.count(response) == 3
+    end
+  end
+
   defp compare_item(%Transaction{} = transaction, json) do
     assert to_string(transaction.hash) == json["hash"]
     assert transaction.block_number == json["block"]
@@ -561,12 +634,15 @@ defmodule BlockScoutWeb.API.V2.TransactionControllerTest do
     assert to_string(log.data) == json["data"]
     assert log.index == json["index"]
     assert Address.checksum(log.address_hash) == json["address"]["hash"]
+    assert to_string(log.transaction_hash) == json["tx_hash"]
   end
 
   defp compare_item(%TokenTransfer{} = token_transfer, json) do
     assert Address.checksum(token_transfer.from_address_hash) == json["from"]["hash"]
     assert Address.checksum(token_transfer.to_address_hash) == json["to"]["hash"]
     assert to_string(token_transfer.transaction_hash) == json["tx_hash"]
+    assert to_string(token_transfer.block_hash) == json["block_hash"]
+    assert to_string(token_transfer.log_index) == json["log_index"]
   end
 
   defp check_paginated_response(first_page_resp, second_page_resp, txs) do

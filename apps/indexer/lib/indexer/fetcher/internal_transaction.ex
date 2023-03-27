@@ -5,7 +5,7 @@ defmodule Indexer.Fetcher.InternalTransaction do
   See `async_fetch/1` for details on configuring limits.
   """
 
-  use Indexer.Fetcher
+  use Indexer.Fetcher, restart: :permanent
   use Spandex.Decorators
 
   require Logger
@@ -15,6 +15,7 @@ defmodule Indexer.Fetcher.InternalTransaction do
   alias Explorer.Chain
   alias Explorer.Chain.Block
   alias Explorer.Chain.Cache.{Accounts, Blocks}
+  alias Explorer.Chain.Import.Runner.Blocks, as: BlocksRunner
   alias Indexer.{BufferedTask, Tracer}
   alias Indexer.Fetcher.InternalTransaction.Supervisor, as: InternalTransactionSupervisor
   alias Indexer.Transform.Addresses
@@ -100,13 +101,7 @@ defmodule Indexer.Fetcher.InternalTransaction do
     json_rpc_named_arguments
     |> Keyword.fetch!(:variant)
     |> case do
-      EthereumJSONRPC.Nethermind ->
-        EthereumJSONRPC.fetch_block_internal_transactions(filtered_unique_numbers, json_rpc_named_arguments)
-
-      EthereumJSONRPC.Erigon ->
-        EthereumJSONRPC.fetch_block_internal_transactions(filtered_unique_numbers, json_rpc_named_arguments)
-
-      EthereumJSONRPC.Besu ->
+      variant when variant in [EthereumJSONRPC.Nethermind, EthereumJSONRPC.Erigon, EthereumJSONRPC.Besu] ->
         EthereumJSONRPC.fetch_block_internal_transactions(filtered_unique_numbers, json_rpc_named_arguments)
 
       _ ->
@@ -114,15 +109,29 @@ defmodule Indexer.Fetcher.InternalTransaction do
           fetch_block_internal_transactions_by_transactions(filtered_unique_numbers, json_rpc_named_arguments)
         rescue
           error ->
-            {:error, error}
+            {:error, error, __STACKTRACE__}
         end
     end
     |> case do
       {:ok, internal_transactions_params} ->
-        import_internal_transaction(internal_transactions_params, filtered_unique_numbers)
+        safe_import_internal_transaction(internal_transactions_params, filtered_unique_numbers)
 
       {:error, reason} ->
-        Logger.error(fn -> ["failed to fetch internal transactions for blocks: ", inspect(reason)] end,
+        Logger.error(
+          fn ->
+            ["failed to fetch internal transactions for blocks: ", Exception.format(:error, reason)]
+          end,
+          error_count: filtered_unique_numbers_count
+        )
+
+        # re-queue the de-duped entries
+        {:retry, filtered_unique_numbers}
+
+      {:error, reason, stacktrace} ->
+        Logger.error(
+          fn ->
+            ["failed to fetch internal transactions for blocks: ", Exception.format(:error, reason, stacktrace)]
+          end,
           error_count: filtered_unique_numbers_count
         )
 
@@ -167,11 +176,10 @@ defmodule Indexer.Fetcher.InternalTransaction do
 
           transactions ->
             try do
-              transactions = Enum.reject(transactions, fn x -> x[:hash_data] == "0x6bdd8021991d42307ff4553509e577ac744941d8edfcf6ddc07d1f5fe411ded5" || x[:hash_data] == "0xab47028605f3baec05bcc85796e1915953189ff9b9bffbbd1a4bed172856bff8" end)
               EthereumJSONRPC.fetch_internal_transactions(transactions, json_rpc_named_arguments)
             catch
               :exit, error ->
-                {:error, error}
+                {:error, error, __STACKTRACE__}
             end
         end
         |> case do
@@ -182,6 +190,14 @@ defmodule Indexer.Fetcher.InternalTransaction do
       _, error_or_ignore ->
         error_or_ignore
     end)
+  end
+
+  defp safe_import_internal_transaction(internal_transactions_params, block_numbers) do
+    import_internal_transaction(internal_transactions_params, block_numbers)
+  rescue
+    Postgrex.Error ->
+      handle_foreign_key_violation(internal_transactions_params, block_numbers)
+      {:retry, block_numbers}
   end
 
   defp import_internal_transaction(internal_transactions_params, unique_numbers) do
@@ -264,6 +280,22 @@ defmodule Indexer.Fetcher.InternalTransaction do
       else
         internal_transaction_param
       end
+    end)
+  end
+
+  defp handle_foreign_key_violation(internal_transactions_params, block_numbers) do
+    BlocksRunner.invalidate_consensus_blocks(block_numbers)
+
+    transaction_hashes =
+      internal_transactions_params
+      |> Enum.map(&to_string(&1.transaction_hash))
+      |> Enum.uniq()
+
+    Logger.error(fn ->
+      [
+        "foreign_key_violation on internal transactions import, foreign transactions hashes: ",
+        Enum.join(transaction_hashes, ", ")
+      ]
     end)
   end
 
