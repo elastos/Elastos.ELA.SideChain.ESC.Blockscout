@@ -5,31 +5,22 @@ defmodule BlockScoutWeb.LayoutView do
   alias Plug.Conn
   alias Poison.Parser
 
+  @issue_url "https://github.com/elastos/Elastos.ELA.SideChain.ESC.Blockscout/issues/new"
+
   @default_other_networks [
     %{
-      title: "POA",
-      url: "https://blockscout.com/poa/core"
+      title: "Mainnet",
+      url: "https://esc.elastos.io",
     },
     %{
-      title: "Sokol",
-      url: "https://blockscout.com/poa/sokol",
+      title: "Testnet",
+      url: "https://esc-testnet.elastos.io",
       test_net?: true
-    },
-    %{
-      title: "Gnosis Chain",
-      url: "https://blockscout.com/xdai/mainnet"
-    },
-    %{
-      title: "Ethereum Classic",
-      url: "https://blockscout.com/etc/mainnet",
-      other?: true
-    },
-    %{
-      title: "RSK",
-      url: "https://blockscout.com/rsk/mainnet",
-      other?: true
     }
   ]
+  
+  import BlockScoutWeb.AddressView, only: [from_address_hash: 1]
+
 
   alias BlockScoutWeb.SocialMedia
 
@@ -62,15 +53,8 @@ defmodule BlockScoutWeb.LayoutView do
   end
 
   def issue_link(conn) do
-    params = [
-      labels: "BlockScout",
-      body: issue_body(conn),
-      title: subnetwork_title() <> ": <Issue Title>"
-    ]
-
-    issue_url = "#{Application.get_env(:block_scout_web, :footer)[:github_link]}/issues/new"
-
-    [issue_url, "?", URI.encode_query(params)]
+    
+    @issue_url
   end
 
   defp issue_body(conn) do
@@ -118,8 +102,8 @@ defmodule BlockScoutWeb.LayoutView do
           nil
 
         release_link_env_var == "" || release_link_env_var == nil ->
-          "https://github.com/blockscout/blockscout/releases/tag/" <> version
-
+          "https://github.com/elastos/Elastos.ELA.SideChain.ETH.Blockscout/tree/" <> version
+          
         true ->
           release_link_env_var
       end
